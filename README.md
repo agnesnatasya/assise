@@ -194,11 +194,10 @@ cd kernfs/tests
 sudo ./run.sh kernfs
 ~~~
 
-Make sure to run KernFS on the nodes in the reverse order of 'libfs/src/distributed/rpc_interface.h' to avoid connection
-establishment issues.
+Make sure to run KernFS on the nodes in the reverse order of 'libfs/src/distributed/rpc_interface.h' to avoid connection establishment issues.
 
 ### 10. Run a test application
-This test will write sequentially to a 2GB file using 4K IO and 1 thread
+Open a separate window to run the test application. This test will write sequentially to a 2GB file using 4K IO and 1 thread
 ~~~
 cd libfs/tests
 sudo ./run.sh iotest sw 2G 4K 1
@@ -254,7 +253,13 @@ For more advanced configurations, we describe additional parameters.
 
 **mkfs.sh fails with ''mlfs_assert(file_size_blks > log_size_blks)''**
 
-This indicates that the NVM device size defined during [step 2](#storage-configuration) is lower than the total log sizes. Either increase dev_size[g_log_dev] or reduce g_log_size.
+This indicates that the NVM device size defined during step 5 is lower than the total log sizes, and these log occupies NVM, hence the error. 
+* The total log size is the variable `g_log_size` * the number of maximum LibFS process.
+* The NVM size is defined in step 5 above. 
+
+To solve this, you can either 
+* increase the variable `dev_size[g_log_dev]` by repeating step 5 and setting the NVM size to a higher value, but make sure that the memory actually is that big
+* or reduce `g_log_size`, defined in `libfs/src/global/global.h`, comment and uncomment the lines, to define a smaller `g_log_size`
 
 ##
 **LibFS exits with ''not enough space for patching around syscal libsyscall_intercept error''**
