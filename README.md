@@ -204,15 +204,16 @@ cd libfs/tests
 sudo ./run.sh iotest sw 2G 4K 1
 ~~~
 
-## Basic Usage ##
+## Loader Usage ##
 
 To run Assise with any application, you need to LD_PRELOAD LibFS. e.g.
 ~~~
 LD_PRELOAD=./libfs/build/libmlfs.so sample_app
 ~~~
 
-**Note:** Assise will only intercept supported filesystem calls that are accessing the default Assise directory '/mlfs'. This directory is statically defined in 'libfs/src/shim/shim.c' under 'MLFS_PREFIX'
-
+**Note:** 
+* This is because Assise will only intercept supported filesystem calls that are accessing the default Assise directory '/mlfs'. This directory is statically defined in 'libfs/src/shim/shim.c' under 'MLFS_PREFIX'
+* You do not need to worry about this if you are running LibFS using the shell script, such as instruction number 10 above, as the variable `LD_PRELOAD` has been defined there. 
 
 ## Advanced Configuration ##
 
