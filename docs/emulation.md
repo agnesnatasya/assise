@@ -37,8 +37,10 @@ Also change the .config file and set:
 ### Installing new kernel
 Then make the kernel and install it. The kernel build will be in the directory above the sources directory.
  
-    make deb-pkg
-    sudo dpkg -i linux-image.x.y.z.deb 
+    make deb-pkg -j<number of cores> # specify the number of cores to speedup the building process
+    cd .. # the resulting kernel is in the directory above
+    ls # list built kernel image
+    sudo dpkg -i linux-image.x.y.z.deb # install the kernel image
     sudo shutdown -r now
 
 ### Setting up kernel parameters
