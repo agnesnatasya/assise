@@ -16,7 +16,7 @@ We describe below how to measure unladen write and read latencies.
 For write latencies, we disable digestion as it can impact IO performance. To do so, you can run:
 
 ```
-MLFS_DIGEST_TH=100 ./run.sh iobench sw 256M 4K 1 # sequential write
+MLFS_DIGEST_TH=100 ./run.sh iobench_lat sw 256M 4K 1 # sequential write
 ```
 
 MLFS_DIGEST_TH is a %-based digest threshold based on log occupancy. Setting to 100 prevents Assise from pre-emptively digesting data. Before running this script, make sure that your log size is at least 1 GB in order to accommodate the benchmark's workload.
