@@ -22,129 +22,57 @@ month = nov,
 
 ## System Requirements ##
 
-1. Ubuntu 16.04 / 18.04 / Fedora 27
-2. Linux kernel version 4.2+
-3. 8 or more GB of DRAM.
-4. 4 or more CPU cores.
+Node(s) with:
+1. OS Image: Ubuntu 16.04 / 18.04 / Fedora 27
+2. Linux version: Linux kernel version 4.2+
+3. RAM size: 8 or more GB of DRAM
+4. Cores: 4 or more CPU cores.
 
-## Getting Started ##
-Assume the current directory is the project's root directory.
-
-##### [1. Build & Install dependencies](#dependencies)
-
-##### [2. Configure Storage](#storage-configuration)
+__Optional__ 
+1. RDMA connection betweeen the nodes in the cluster
     
-##### [3. Configure Cluster](#cluster-configuration)
+    Assise can be run as both a local file system and a distributed file system. If you want to run it as a distributed fiel system, and RDMA connection between is needed between the nodes in the cluster. To achieve this, the node can either have an InfiniBand interface card or you could also emulate the RDMA connection using RoCE if your server does not have this network interface. Refer to [this](https://community.mellanox.com/s/article/How-To-Enable-Verify-and-Troubleshoot-RDMA) article for further instructions on both of the above.
 
-##### 4. Build Assise
-
-LibFS:
-~~~
-cd libfs; make clean; make; cd tests; make clean; make; cd ../..
-~~~
-
-KernFS:
-~~~
-cd kernfs; make clean; make; cd tests; make clean; make; cd ../..
-~~~
-
-##### 5. Run MKFS
-~~~
-cd kernfs/tests; ./mkfs.sh; cd ../..
-~~~
-
-This will build your filesystem on all [configured devices](#storage-configuration)
-Before formatting your devices, make sure their storage sizes are appropriately configured.
-
-##### 6. Run KernFS
-
-For each node in the cluster, do:
-~~~
-cd kernfs/tests
-sudo ./run.sh kernfs
-~~~
-
-Make sure to run KernFS on the nodes in the reverse order of 'libfs/src/distributed/rpc_interface.h' to avoid connection
-establishment issues.
-
-##### 5. Run a test application
-This test will write sequentially to a 2GB file using 4K IO and 1 thread
-~~~
-cd libfs/tests
-sudo ./run.sh iotest sw 2G 4K 1
-~~~
-
-## Basic Usage ##
-
-To run Assise with any application, you need to LD_PRELOAD LibFS. e.g.
-~~~
-LD_PRELOAD=./libfs/build/libmlfs.so sample_app
-~~~
-
-**Note:** Assise will only intercept supported filesystem calls that are accessing the default Assise directory '/mlfs'. This directory is statically defined in 'libfs/src/shim/shim.c' under 'MLFS_PREFIX'
-
-## Storage Configuration ##
-
-### Create DAX namespaces
-
-To run Assise with NVM, you need to create DEV-DAX devices (aka namespaces) via either one of the following options:
-
-####     a. Real NVM
-If your machines are equipped with NVDIMMs, you can use the [ndctl utility](https://docs.pmem.io/ndctl-user-guide/quick-start).
-The following command creates a device on socket 0 with a capacity of 32 GB:
-
-~~~
-ndctl create-namespace --region=region0 --mode=devdax --size=32G
-~~~
-
-####     b. Emulated NVM
-Alternatively, you can use DRAM to emulate NVM. To do so, follow the instructions in our [emulation guide](https://github.com/ut-osa/assise/blob/master/docs/emulation.md) or refer to this [article](https://software.intel.com/content/www/us/en/develop/articles/how-to-emulate-persistent-memory-on-an-intel-architecture-server.html).
-This will allocate DRAM devices (typically named '/mnt/pmemX'). To be usable by Assise, you need to convert them to DEV-DAX mode as follows:
-
-~~~
-cd utils
-sudo ./use_dax.sh bind 
-~~~
-
-To undo this step, simply run:
-~~~
-sudo ./use_dax.sh unbind
-~~~
-
-### Configure size
-
-This script sets the storage size reserved by Assise for each device. If using NVM only, set both SSD & HDD sizes to zero.
-
-~~~
-./utils/change_dev_size.py <NVM GB> <SSD GB/0> <HDD GB/0>
-~~~
-
-**Note:** By default, at least 30 GB of NVM capacity is required for log allocation. The remainder is assigned to the filesystem's shared cache. To tune these parameters, refer to the [params](#other-params) section.
-
-## Cluster Configuration ##
-
-To appropriately configure the cluster, consult the following files:
-
-* (a) libfs/src/global/global.h
-* (b) libfs/src/distributed/rpc_interface.h
-
-For (a) set ‘g_n_hot_rep’ to the number of nodes you’re planning to use. By default, this value is 2.
-
-For (b), configure the IP address of all the ‘g_n_hot_rep’ nodes in the hot_replicas array. Example for two-node cluster:
-
-```c
-static struct peer_id hot_replicas[g_n_hot_rep] = {                                                         
- { .ip = "172.17.15.2", .role = HOT_REPLICA, .type = KERNFS_PEER},                                   
- { .ip = "172.17.15.4", .role = HOT_REPLICA, .type = KERNFS_PEER},
-};
+## Setup Guide ##
+### 1. Clone the repository and go to the project's root directory. 
+```sh
+git clone https://github.com/ut-osa/assise.git
+cd assise
 ```
-### Running as a local filesystem ###
-Assise can be configured to run locally. To do so, set ‘g_n_hot_rep’ to 1 and the address of KernFS to your localhost IP. In these settings, Assise behaves similarly to the local filesystem [Strata](https://github.com/ut-osa/strata) (which we use as a building block in our project).
 
-## Dependencies ##
+### 2. Make sure that your system fulfills the requirement
+* OS Image
+    ```
+    cat /etc/os-release
+    ```
+* Linux version
+    ```
+    uname -srm
+    ```
+* RAM size
+    ```
+    free -m
+    ```
+* Cores
+    ```
+    lscpu
+    ```
+* RDMA connection
+    * Run the following on the tested RDMA server 
+        ```
+        rdma_server
+        ```
+    * Run the following on the tested RDMA client
+        ```
+        rdma_client -s <IP address of the RDMA server Infiniband's interface>
+        ```
+    
+    All nodes in the cluster will be both RDMA client and server, but you can test the above for any 2 nodes to make sure that RDMA is working. 
+
+### 3. Build & Install dependencies
 
 To build and install dependent packages:
-~~~
+~~~sh
 cd deps; ./install_deps.sh; cd ..
 ~~~
 
@@ -172,6 +100,119 @@ sudo ./uio_setup.sh linux reset
 ~~~
 
 For NVML and SPDK build errors, consult the appropriate [NVML](https://docs.pmem.io/persistent-memory/getting-started-guide/installing-pmdk/compiling-pmdk-from-source) and [SPDK](http://www.spdk.io/doc/getting_started.html) guides.
+
+### 5. Configure Storage
+
+#### Create DAX namespaces
+
+To run Assise with NVM, you need to create DEV-DAX devices (aka namespaces) via either one of the following options:
+
+#####     a. Real NVM
+If your machines are equipped with NVDIMMs, you can use the [ndctl utility](https://docs.pmem.io/ndctl-user-guide/quick-start).
+The following command creates a device on socket 0 with a capacity of 32 GB:
+
+~~~
+ndctl create-namespace --region=region0 --mode=devdax --size=32G
+~~~
+
+#####     b. Emulated NVM
+Alternatively, you can use DRAM to emulate NVM. To do so, follow the instructions in our [emulation guide](https://github.com/ut-osa/assise/blob/master/docs/emulation.md) or refer to this [article](https://software.intel.com/content/www/us/en/develop/articles/how-to-emulate-persistent-memory-on-an-intel-architecture-server.html).
+This will allocate DRAM devices (typically named '/mnt/pmemX'). To be usable by Assise, you need to convert them to DEV-DAX mode as follows:
+
+~~~
+cd utils
+sudo ./use_dax.sh bind 
+~~~
+
+To undo this step, simply run:
+~~~
+sudo ./use_dax.sh unbind
+~~~
+
+#### Configure size
+
+This script sets the storage size reserved by Assise for each device. If using NVM only, set both SSD & HDD sizes to zero.
+
+~~~
+./utils/change_dev_size.py <NVM GB> <SSD GB/0> <HDD GB/0>
+~~~
+
+**Note:** 
+* By default, at least 30 GB of NVM capacity is required for log allocation. The remainder is assigned to the filesystem's shared cache. To tune these parameters, refer to the [params](#other-params) section.
+* The size of NVM specified here should be less than or equal to the size of the NVM device configured in the above step (the size of the pmem region)
+
+### 6. Configure Cluster
+
+To appropriately configure the cluster, consult the following files:
+
+* (a) libfs/src/global/global.h
+* (b) libfs/src/distributed/rpc_interface.h
+
+For (a) set ‘g_n_hot_rep’ to the number of nodes you’re planning to use. By default, this value is 2.
+
+For (b), configure the IP address of all the ‘g_n_hot_rep’ nodes in the hot_replicas array. Example for two-node cluster:
+
+```c
+static struct peer_id hot_replicas[g_n_hot_rep] = {                                                         
+ { .ip = "172.17.15.2", .role = HOT_REPLICA, .type = KERNFS_PEER},                                   
+ { .ip = "172.17.15.4", .role = HOT_REPLICA, .type = KERNFS_PEER},
+};
+```
+
+**Note**:
+* The IP address is the IP address of the RDMA interface of each of the nodes 
+
+#### Running as a local filesystem ####
+Assise can be configured to run locally. To do so, set ‘g_n_hot_rep’ to 1 and the address of KernFS to your localhost IP. In these settings, Assise behaves similarly to the local filesystem [Strata](https://github.com/ut-osa/strata) (which we use as a building block in our project).
+
+
+### 7. Build Assise
+
+LibFS:
+~~~
+cd libfs; make clean; make; cd tests; make clean; make; cd ../..
+~~~
+
+KernFS:
+~~~
+cd kernfs; make clean; make; cd tests; make clean; make; cd ../..
+~~~
+
+### 8. Run MKFS
+~~~
+cd kernfs/tests; ./mkfs.sh; cd ../..
+~~~
+
+This will build your filesystem on all [configured devices](#storage-configuration)
+Before formatting your devices, make sure their storage sizes are appropriately configured.
+
+### 9. Run KernFS
+
+For each node in the cluster, do:
+~~~
+cd kernfs/tests
+sudo ./run.sh kernfs
+~~~
+
+Make sure to run KernFS on the nodes in the reverse order of 'libfs/src/distributed/rpc_interface.h' to avoid connection
+establishment issues.
+
+### 10. Run a test application
+This test will write sequentially to a 2GB file using 4K IO and 1 thread
+~~~
+cd libfs/tests
+sudo ./run.sh iotest sw 2G 4K 1
+~~~
+
+## Basic Usage ##
+
+To run Assise with any application, you need to LD_PRELOAD LibFS. e.g.
+~~~
+LD_PRELOAD=./libfs/build/libmlfs.so sample_app
+~~~
+
+**Note:** Assise will only intercept supported filesystem calls that are accessing the default Assise directory '/mlfs'. This directory is statically defined in 'libfs/src/shim/shim.c' under 'MLFS_PREFIX'
+
 
 ## Advanced Configuration ##
 
@@ -209,7 +250,6 @@ For more advanced configurations, we describe additional parameters.
 **Note:** (g_n_max_libfs + g_n_hot_rep) * g_log_size should be <= dev_size[g_log_dev].
 
 ## Troubleshooting ##
-
 
 **mkfs.sh fails with ''mlfs_assert(file_size_blks > log_size_blks)''**
 
