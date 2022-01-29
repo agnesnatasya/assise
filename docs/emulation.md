@@ -14,7 +14,7 @@ Get the current kernel version using uname version.
 Download the kernel source files. For systems with apt-get, you can do so as follows:
  
     sudo apt-get install linux-source-5.6
-    cp /usr/src/linux-sources-5.6.tar.xz
+    cp /usr/src/linux-sources-5.6.tar.xz .
     tar xf linux-sources-5.6.tar.xz
     cd linux-sources-5.6
 
@@ -59,7 +59,9 @@ The region above starts at 0x0000000100000000 (4 GB) and ends at 0x000000053ffff
 
     memmap=8G!4G
 
-This will reserve 8 GB of memory starting at the 4 GB offset (which is usable in this example). On an Ubuntu 18.04 BIOS machine, you can pass these parameters by modifying the grub configuration file.
+This will reserve 8 GB of memory starting at the 4 GB offset (which is usable in this example) for NVM, and will be usable by Assise. The size of NVM allocated here will affect the performance of Assise, choose an appropriate value, a minimum size of 16MB is required for performance.
+
+On an Ubuntu 18.04 BIOS machine, you can pass these parameters by modifying the grub configuration file.
 
     vi /etc/default/grub
     GRUB_CMDLINE_LINUX="memmap=8G!4G"
@@ -73,14 +75,14 @@ After rebooting, you should see one pmem region configured.
     ndctl list
 
     [
-    {
-      "dev":"namespace1.0",
-    "mode":"fsdax",
-    "map":"mem",
-    "size":8589934592,
-    "sector_size":512,
-    "blockdev":"pmem0"
-    } 
+      {
+        "dev":"namespace1.0",
+        "mode":"fsdax",
+        "map":"mem",
+        "size":8589934592,
+        "sector_size":512,
+        "blockdev":"pmem0"
+      } 
     ]
 
 ### More info
