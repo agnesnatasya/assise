@@ -19,6 +19,7 @@
 #include "extents_bh.h"
 #include "filesystem/slru.h"
 #include "migrate.h"
+#include <leveldb/c.h>
 
 #ifdef DISTRIBUTED
 #include "distributed/rpc_interface.h"
@@ -963,12 +964,16 @@ static void digest_each_log_entries(uint8_t from_dev, int libfs_id, loghdr_meta_
 				if (enable_perf_stats) 
 					tsc_begin = asm_rdtscp();
 
+				// Agnes' change
+				/*
 				ret = digest_inode(from_dev,
 						g_root_dev,
 						libfs_id,
 						loghdr->inode_no[i], 
 						loghdr->blocks[i] + loghdr_meta->hdr_blkno);
 				mlfs_assert(!ret);
+				*/
+
 
 				if (enable_perf_stats)
 					g_perf_stats.digest_inode_tsc +=
@@ -989,7 +994,8 @@ static void digest_each_log_entries(uint8_t from_dev, int libfs_id, loghdr_meta_
 				// for NVM bypassing test
 				//dest_dev = g_ssd_dev;
 #endif
-				ret = digest_file(from_dev, 
+				// Agnes' change
+				/*ret = digest_file(from_dev, 
 						dest_dev,
 						libfs_id,
 						loghdr->inode_no[i], 
@@ -997,6 +1003,8 @@ static void digest_each_log_entries(uint8_t from_dev, int libfs_id, loghdr_meta_
 						loghdr->length[i],
 						loghdr->blocks[i] + loghdr_meta->hdr_blkno);
 				mlfs_assert(!ret);
+				*/
+				
 
 				if (enable_perf_stats)
 					g_perf_stats.digest_file_tsc +=
@@ -1007,24 +1015,30 @@ static void digest_each_log_entries(uint8_t from_dev, int libfs_id, loghdr_meta_
 				if (enable_perf_stats) 
 					tsc_begin = asm_rdtscp();
 
+				// Agnes' change
+				/*
 				ret = digest_unlink(from_dev,
 						g_root_dev,
 						libfs_id, 
 						loghdr->inode_no[i]);
 				mlfs_assert(!ret);
-
+				*/ 
+				
 				if (enable_perf_stats) 
 					g_perf_stats.digest_inode_tsc +=
 						asm_rdtscp() - tsc_begin;
 				break;
 			}
 			case L_TYPE_ALLOC: {
+				// Agnes' change
+				/* 
 				ret = digest_allocate(from_dev,
 						g_root_dev,
 					        libfs_id,
 						loghdr->inode_no[i],
 						loghdr->data[i]);
 				mlfs_assert(!ret);
+				*/ 
 				break;
 			}
 			default: {
@@ -2091,6 +2105,10 @@ void init_fs(void)
 	//shared_memory_init();
 
 	cache_init(g_root_dev);
+	
+	// Agnes' change
+	leveldb_env_t* env = leveldb_create_default_env();
+
 
 	locks_init();
 
