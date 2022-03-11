@@ -661,6 +661,7 @@ static inline int dlookup_del(const char *path)
 // global variables
 extern uint8_t fs_dev_id;
 extern struct disk_superblock *disk_sb;
+struct db_wrapper *db;
 extern struct super_block *sb[g_n_devices + 1];
 
 //forward declaration

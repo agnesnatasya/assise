@@ -297,6 +297,7 @@ struct replay_list {
 struct dinode {
 	uint8_t itype;		// File type
 	uint8_t nlink;		// Number of links to inode in file system
+  int has_blob = 0;				// Whether this inode has an object store. If not, its data is inline	
 
 #if 0
 	uint8_t lstate;		// Lease state for inode (read, write, digest_to_acquire, free)
@@ -354,6 +355,7 @@ struct inode {
 	/////////////////////////////////////////////////////////////////
 	uint8_t itype;      // File type
 	uint8_t nlink;      // Number of links to inode in file system
+  int has_blob = 0;				// Whether this inode has an object store. If not, its data is inline
 
 #if 0
 	uint8_t lstate;		// Lease state for inode (free, read, write)
@@ -400,6 +402,7 @@ struct inode {
 
 	// This contains up-to-date dinode information
 	struct dinode *_dinode;
+
 
 	struct super_block **i_sb;
 	uint8_t dinode_flags; //flag to see whether dinode is loaded or not
