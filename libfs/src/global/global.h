@@ -101,7 +101,7 @@ void mlfs_setup(void);
 #define g_n_nodes (g_n_hot_rep + g_n_hot_bkp + g_n_cold_bkp + g_n_ext_rep)
 
 // # of LibFS processes (max)
-#define g_n_max_libfs 30
+#define g_n_max_libfs 3
 
 /**
  *
