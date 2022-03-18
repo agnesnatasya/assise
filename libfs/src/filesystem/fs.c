@@ -1,3 +1,4 @@
+
 #include <signal.h>
 #include <stdio.h>
 #include <string.h>
@@ -21,8 +22,9 @@
 #include "mlfs/mlfs_interface.h"
 #include "ds/bitmap.h"
 #include "filesystem/slru.h"
-#include "filesystem/db_wrapper.h"
+#include "filesystem/db_adaptor.h"
 
+#include "leveldb/c.h"
 #include "distributed/rpc_interface.h"
 
 #define _min(a, b) ({\
@@ -34,7 +36,7 @@ int log_fd = 0;
 int shm_fd = 0;
 
 struct disk_superblock *disk_sb;
-struct db_wrapper *db;
+struct db_adaptor *db_adaptor;
 struct super_block *sb[g_n_devices + 1];
 ncx_slab_pool_t *mlfs_slab_pool;
 ncx_slab_pool_t *mlfs_slab_pool_shared;
@@ -308,7 +310,7 @@ static void cache_init(void)
 static void db_init(void) {
 	// start new. 
 	// TODO: recover from a state
-  db = new DBWrapper();
+  db_adaptor = create_db();
 }
 
 static void locks_init(void)
@@ -2096,30 +2098,57 @@ int readi(struct inode *ip, struct mlfs_reply *reply, offset_t off, uint32_t io_
 {
 	int ret = 0;
 	//uint8_t *_dst;
-	// offset_t _off, offset_end, offset_aligned, offset_small = 0;
-	// offset_t size_aligned = 0, size_prepended = 0, size_appended = 0, size_small = 0;
+	offset_t _off, offset_end, offset_aligned, offset_small = 0;
+	offset_t size_aligned = 0, size_prepended = 0, size_appended = 0, size_small = 0;
 	int io_done;
 
 	mlfs_assert(off < ip->size);
 
+/*
+	if(reply->remote) {
+#if MLFS_REPLICA
+		//only support 4k io sizes for received rpc reads
+		mlfs_assert(io_size == g_block_size_bytes);
+#else
+		panic("Unsupported operation; only replicas can serve remote reads\n");
+#endif
+	}
+*/
+
 	if (off + io_size > ip->size)
 		io_size = ip->size - off;
 
-	if (f->ip->has_blob > 0) {
-		io_done = pread(f->fd, reply->dst, io_size, off);
-	} else {
-		io_done = db->GetInlineData(f->path, reply->dst, off, io_size);
+	//_dst = dst;
+	//_off = off;
+
+	offset_end = off + io_size;
+	offset_aligned = ALIGN(off, g_block_size_bytes);
+
+	// aligned read.
+	if ((offset_aligned == off) &&
+		(offset_end == ALIGN(offset_end, g_block_size_bytes))) {
+		size_aligned = io_size;
 	}
+	// unaligned read.
+	else {
+		if ((offset_aligned == off && io_size < g_block_size_bytes) ||
+				(offset_end < offset_aligned)) {
+			offset_small = off - ALIGN_FLOOR(off, g_block_size_bytes);
+			size_small = io_size;
+		} else {
+			if (off < offset_aligned) {
+				size_prepended = offset_aligned - off;
+			} else
+				size_prepended = 0;
 
-	mlfs_assert(size_small == io_done);
+			size_appended = ALIGN(offset_end, g_block_size_bytes) - offset_end;
+			if (size_appended > 0) {
+				size_appended = g_block_size_bytes - size_appended;
+			}
 
-	reply->dst += io_done;
-	off += io_done;
-	ret += io_done;
-
-/*
-	_dst = dst;
-	_off = off;
+			size_aligned = io_size - size_prepended - size_appended;
+		}
+	}
 
 	mlfs_debug("read stats: inode[inum %u isize %lu] size_small %lu size_prepended %lu size_aligned %lu size_appended %lu\n",
 			ip->inum, ip->size, size_small, size_prepended, size_aligned, size_appended);
@@ -2162,7 +2191,6 @@ int readi(struct inode *ip, struct mlfs_reply *reply, offset_t off, uint32_t io_
 		off += io_done;
 		ret += io_done;
 	}
-*/
 
 	mlfs_debug("finishing read. iodone: %d\n", ret);
 
@@ -2199,6 +2227,9 @@ int add_to_log(struct inode *ip, uint8_t *data, offset_t off, uint32_t size, uin
 	mlfs_assert(loghdr_meta->nr_iovec <= 9);
 	add_to_loghdr(ltype, ip, off, size, NULL, 0);
 
+	// Try level DB operations
+  leveldb_writeoptions_t *woptions = leveldb_writeoptions_create();
+  leveldb_put(db_adaptor->db, woptions, "key", 3, "value", 5, NULL);
 	mlfs_debug("%s\n", "add to loghdr done");
 
 	mlfs_debug("DEBUG off+size %lu ip->size %lu\n", off+size, ip->size);
