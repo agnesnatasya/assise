@@ -3,6 +3,9 @@
 #include "log/log.h"
 #include "global/global.h"
 #include "concurrency/thread.h"
+#include "filesystem/db_adaptor.h"
+
+#include "leveldb/c.h"
 
 #if MLFS_LEASE
 #include "experimental/leases.h"
@@ -11,6 +14,51 @@
 #if MLFS_NAMESPACES
 #include "distributed/rpc_interface.h"
 #endif
+
+struct db_adaptor *db_adaptor = create_db();
+leveldb_writeoptions_t *woptions = leveldb_writeoptions_create();
+
+/* Store in a TableFS.
+Operations supported:
+- dir_lookup 
+	1. From name and parnet inode, get the inode and get the offset
+- dir_get_entry
+	1. From parent inode and offset, get the directory entry
+- dir_change_entry
+	1. dir_lookup
+	2. 
+	3. Remove the iput from the caller
+- dir_remove_entry
+	1.
+- dir_add_links
+- dir_add_entry
+*/
+
+// LevelDB Operations
+struct meta_key {
+	int inum;
+	int hash_id;
+}
+
+static unsigned int
+murmur_hash(const void *key, size_t keyLen, unsigned int hashmask)
+{
+    size_t i;
+    unsigned int h = 5381;
+
+    for (i=0; i<keyLen; ++i)
+    {
+        h += (h << 5) + ((const unsigned char *)key)[i];
+    }
+
+    return h & hashmask;
+}
+
+// Must change the name to an absolut path, cannot only the last one 
+static void build_meta_key(char *name, int len, int inum, struct meta_key &k) {
+	k.inum = inum;
+	k.hash_id = murmur_hash(name, len, 123);
+}
 
 int namecmp(const char *s, const char *t)
 {
@@ -26,7 +74,7 @@ int get_dirent(struct inode *dir_inode, struct mlfs_dirent *buf, offset_t offset
 
 	reply.remote = 0;
 	reply.dst = (uint8_t *) buf;
-	return readi(dir_inode, &reply, offset, sizeof(struct mlfs_dirent), NULL);
+	return readi(dir_inode, &reply, offset, sizeof(struct mlfs_dirent), NULL); // returns the number of io done
 }
 
 // Lookup an inode by name and return offset of its directory entry
@@ -66,15 +114,11 @@ struct inode *dir_lookup(struct inode *dir_inode, char *name, offset_t *poff)
 		if (get_dirent(dir_inode, &de, off) != sizeof(struct mlfs_dirent))
 			break;
 
-		ip = icache_find(de.inum);
+		// get the inode of this inum
+		ip = icache_find(de.inum); 
 
 		if(!ip) {
-#if MLFS_NAMESPACES
-			ip = iget(de.inum | (dir_inode->inum & g_namespace_mask));	
-#else
 			ip = iget(de.inum);
-#endif
-
 		}
 
 		// add entry to cache
@@ -98,7 +142,7 @@ int dir_get_entry(struct inode *dir_inode, struct linux_dirent *buf, offset_t of
 {
 	struct mlfs_dirent de;
 	int ret;
-
+/*
 	ret = get_dirent(dir_inode, &de, off);
 
 #if MLFS_NAMESPACES
@@ -112,6 +156,10 @@ int dir_get_entry(struct inode *dir_inode, struct linux_dirent *buf, offset_t of
 	strncpy(buf->d_name, de.name, DIRSIZ);
 
 	return sizeof(struct mlfs_dirent);
+*/
+
+
+	
 }
 
 
@@ -245,19 +293,23 @@ struct mlfs_dirent *dir_add_entry(struct inode *dir_inode, char *name, struct in
 {
 	struct mlfs_dirent *new_de;
 	offset_t off;
+	struct inode *ip;
+	offset_t de_off;
+	struct meta_key k;
+
+	// LevelDB Operations
+	// To create the key and put it in the DB
+	build_meta_key(char *name, int len, int inum, k);
+  leveldb_put(db_adaptor->db, woptions, k, sizeof(meta_key), *dir_inode, dir_inode->size, NULL);
 
 	new_de = mlfs_zalloc(sizeof(struct mlfs_dirent));
-#if MLFS_NAMESPACES
-	new_de->inum = ip->inum & ~g_namespace_mask;
-#else
 	new_de->inum = ip->inum;
-#endif
 	strncpy(new_de->name, name, DIRSIZ);
 	off = dir_inode->size;
 
 	// append to directory file
 	mlfs_debug("adding new dirent to dir inode %u: %s ~ %u at offset %lu\n", dir_inode->inum, name, ip->inum, dir_inode->size);
-	add_to_log(dir_inode, (uint8_t *) new_de, off, sizeof(struct mlfs_dirent), L_TYPE_DIR_ADD);
+	add_to_log(dir_inode, (uint8_t *) new_de, off, sizeof(struct mlfs_dirent), L_TYPE_DIR_ADD); // to be able to be replicated, not sure if I should remove this or not
 
 	de_cache_add(dir_inode, name, ip, off);
 
@@ -283,24 +335,7 @@ static struct inode* namex(char *path, int parent, char *name)
 	uint32_t namespace_inum;
 
 	if (*path == '/') {
-#if MLFS_NAMESPACES
-		if (sscanf(path, "/mlfs:%[^/]", namespace_id) == 1) {
-			mlfs_printf("parsed namespace id: '%s'\n", namespace_id);
-			namespace_inum = translate_namespace_inum(ROOTINO, namespace_id);
-			ip = iget(namespace_inum);
-		} else {
-			mlfs_printf("no namespace id in path '%s'\n", path);
-			ip = iget(ROOTINO);
-		}
-
-#else
 		ip = iget(ROOTINO);
-#endif
-
-#if MLFS_LEASE
-		strcat(current_path, "/");
-		//acquire_lease(ip->inum, LEASE_READ, current_path);
-#endif
 	}
 	else
 		//ip = idup(proc->cwd);
@@ -326,11 +361,6 @@ static struct inode* namex(char *path, int parent, char *name)
 
 		iunlockput(ip);
 		ip = next;
-#if MLFS_LEASE
-		strcat(current_path, name);
-		//acquire_lease(ip->inum, LEASE_READ, current_path);
-		strcat(current_path, "/");
-#endif
 	}
 
 	if (parent) {
@@ -383,31 +413,12 @@ struct inode* namei(char *path)
 
 struct inode* nameiparent(char *path, char *name)
 {
-#if 0 // This is for debugging.
-	struct inode *inode, *_inode;
-	char parent_path[MAX_PATH];
-
-	get_parent_path(path, parent_path);
-
-	_inode = dlookup_find(g_root_dev, parent_path); 
-
-	if (!_inode) {
-		inode = namex(path, 1, name);
-		if (inode)
-			dlookup_alloc_add(g_root_dev, inode, parent_path);
-		_inode = inode;
-	} else {
-		inode = namex(path, 1, name);
-		mlfs_assert(inode == _inode);
-	}
-
-	return inode;
-#else
 	struct inode *inode;
 	char parent_path[MAX_PATH];
 
 	get_parent_path(path, parent_path, name);
 
+	// get the inode from the full path
 	inode = dlookup_find(parent_path); 
 
 	if (inode && (inode->flags & I_DELETING)) 
@@ -424,5 +435,4 @@ struct inode* nameiparent(char *path, char *name)
 	}
 
 	return inode;
-#endif
 }

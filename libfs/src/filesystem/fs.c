@@ -22,9 +22,7 @@
 #include "mlfs/mlfs_interface.h"
 #include "ds/bitmap.h"
 #include "filesystem/slru.h"
-#include "filesystem/db_adaptor.h"
 
-#include "leveldb/c.h"
 #include "distributed/rpc_interface.h"
 
 #define _min(a, b) ({\
@@ -36,7 +34,6 @@ int log_fd = 0;
 int shm_fd = 0;
 
 struct disk_superblock *disk_sb;
-struct db_adaptor *db_adaptor;
 struct super_block *sb[g_n_devices + 1];
 ncx_slab_pool_t *mlfs_slab_pool;
 ncx_slab_pool_t *mlfs_slab_pool_shared;
@@ -307,12 +304,6 @@ static void cache_init(void)
 	g_fcache_head.n = 0;
 }
 
-static void db_init(void) {
-	// start new. 
-	// TODO: recover from a state
-  db_adaptor = create_db();
-}
-
 static void locks_init(void)
 {
 	pthread_rwlockattr_t rwlattr;
@@ -442,7 +433,6 @@ void init_fs(void)
 
 		cache_init();
 
-		db_init();
 		//shared_memory_init();
 
 		locks_init();
@@ -2227,9 +2217,6 @@ int add_to_log(struct inode *ip, uint8_t *data, offset_t off, uint32_t size, uin
 	mlfs_assert(loghdr_meta->nr_iovec <= 9);
 	add_to_loghdr(ltype, ip, off, size, NULL, 0);
 
-	// Try level DB operations
-  leveldb_writeoptions_t *woptions = leveldb_writeoptions_create();
-  leveldb_put(db_adaptor->db, woptions, "key", 3, "value", 5, NULL);
 	mlfs_debug("%s\n", "add to loghdr done");
 
 	mlfs_debug("DEBUG off+size %lu ip->size %lu\n", off+size, ip->size);
