@@ -15,8 +15,9 @@
 #include "distributed/rpc_interface.h"
 #endif
 
-struct db_adaptor *db_adaptor = create_db();
-leveldb_writeoptions_t *woptions = leveldb_writeoptions_create();
+struct db_adaptor *db_adaptor;
+leveldb_writeoptions_t *woptions;
+leveldb_readoptions_t *roptions;
 
 /* Store in a TableFS.
 Operations supported:
@@ -34,11 +35,14 @@ Operations supported:
 - dir_add_entry
 */
 
-// LevelDB Operations
-struct meta_key {
-	int inum;
-	int hash_id;
+
+void dirent_init() {
+	db_adaptor = create_db();
+	woptions = leveldb_writeoptions_create();
+	roptions = leveldb_readoptions_create();
+
 }
+// LevelDB Operations
 
 static unsigned int
 murmur_hash(const void *key, size_t keyLen, unsigned int hashmask)
@@ -55,15 +59,16 @@ murmur_hash(const void *key, size_t keyLen, unsigned int hashmask)
 }
 
 // Must change the name to an absolut path, cannot only the last one 
-static void build_meta_key(char *name, int len, int inum, struct meta_key &k) {
-	k.inum = inum;
-	k.hash_id = murmur_hash(name, len, 123);
+static void build_meta_key(char *name, int len, int inum, char *k) {
+	uint hash_id = murmur_hash(name, len, 123);
+	strcat(hash_id, inum);
 }
 
 int namecmp(const char *s, const char *t)
 {
 	return strncmp(s, t, DIRSIZ);
 }
+
 
 int get_dirent(struct inode *dir_inode, struct mlfs_dirent *buf, offset_t offset)
 {
@@ -85,6 +90,7 @@ struct inode *dir_lookup(struct inode *dir_inode, char *name, offset_t *poff)
 	struct inode *ip = NULL;
 	int n_de_cache = 0;
 	offset_t off;
+	char *k;
 
 	//pthread_rwlock_wrlock(g_debug_rwlock);
 
@@ -97,6 +103,7 @@ struct inode *dir_lookup(struct inode *dir_inode, char *name, offset_t *poff)
 
 	mlfs_debug("dir_lookup: de_cache miss for dir %u, name %s\n", dir_inode->inum, name);
 
+	// might need to change this in the future
 	n_de_cache = dir_inode->n_de_cache_entry + 2;
 	if (n_de_cache * sizeof(struct mlfs_dirent) == dir_inode->size) {
 		mlfs_debug("%s\n", "not found w/ full de cache - skipping iteration");
@@ -104,10 +111,12 @@ struct inode *dir_lookup(struct inode *dir_inode, char *name, offset_t *poff)
 		return NULL;
 	}
 
+	build_meta_key(name, strlen(name), dir_inode->inum, k);
+  char *read = leveldb_get(db_adaptor->db, roptions, k, sizeof(k), dir_inode->size, NULL);
+	
+	/*
 	mlfs_debug("dir_lookup: starting search for name %s (dirs: cached %d total %ld)\n",
 			name, n_de_cache, dir_inode->size / sizeof(struct mlfs_dirent));
-
-
 	// iterate through file's dirent until finding name match
 	for (off = n_de_cache * sizeof(struct mlfs_dirent); off < dir_inode->size; off += sizeof(struct mlfs_dirent)) {
 
@@ -130,7 +139,7 @@ struct inode *dir_lookup(struct inode *dir_inode, char *name, offset_t *poff)
 			return ip;
 		}
 	}
-
+	*/
 	//pthread_rwlock_unlock(g_debug_rwlock);
 	mlfs_debug("dir_lookup: did not find %s in dir %u\n", name, dir_inode->inum);
 	return NULL;
@@ -293,14 +302,13 @@ struct mlfs_dirent *dir_add_entry(struct inode *dir_inode, char *name, struct in
 {
 	struct mlfs_dirent *new_de;
 	offset_t off;
-	struct inode *ip;
 	offset_t de_off;
-	struct meta_key k;
+	char *k;
 
 	// LevelDB Operations
 	// To create the key and put it in the DB
-	build_meta_key(char *name, int len, int inum, k);
-  leveldb_put(db_adaptor->db, woptions, k, sizeof(meta_key), *dir_inode, dir_inode->size, NULL);
+	build_meta_key(name, strlen(name), ip->inum, k);
+  leveldb_put(db_adaptor->db, woptions, k, sizeof(k), dir_inode, dir_inode->size, NULL);
 
 	new_de = mlfs_zalloc(sizeof(struct mlfs_dirent));
 	new_de->inum = ip->inum;

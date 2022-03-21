@@ -23,6 +23,7 @@ void mlfs_file_init(void)
 {
 	g_fd_table.open_files_ht = NULL;
 	pthread_spin_init(&g_fd_table.lock, PTHREAD_PROCESS_SHARED); 
+	dirent_init();
 }
 
 /*
