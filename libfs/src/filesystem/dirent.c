@@ -111,9 +111,17 @@ struct inode *dir_lookup(struct inode *dir_inode, char *name, offset_t *poff)
 		return NULL;
 	}
 
-	build_meta_key(name, strlen(name), dir_inode->inum, k);
-  char *read = leveldb_get(db_adaptor->db, roptions, k, sizeof(k), dir_inode->size, NULL);
+	// build_meta_key(name, strlen(name), dir_inode->inum, k);
+  // char *read = leveldb_get(db_adaptor->db, roptions, k, sizeof(k), dir_inode->size, NULL);
 	
+	sprintf(cmd, "|digest |%d|%d|%u|%lu|%lu|%lu",
+			g_self_id, g_log_dev, g_fs_log->n_digest_req, g_log_sb->start_digest,
+		       	 g_fs_log->log_sb_blk + 1, atomic_load(&g_log_sb->end));
+
+	mlfs_printf("%s\n", cmd);
+
+	rpc_forward_msg(g_kernfs_peers[g_kernfs_id]->sockfd[SOCK_BG], cmd);
+
 	/*
 	mlfs_debug("dir_lookup: starting search for name %s (dirs: cached %d total %ld)\n",
 			name, n_de_cache, dir_inode->size / sizeof(struct mlfs_dirent));

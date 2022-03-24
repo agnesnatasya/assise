@@ -35,14 +35,15 @@ STORAGE_ENGINE := $(wildcard $(LIBFS_DIR)/build/storage/*.o)
 RDMA_DIR := $(abspath $(LIBFS_DIR)/lib/rdma)
 RDMA_CORE_DIR := $(abspath $(LIBFS_DIR)/lib/rdma-core/build/include)
 RDMA_CORE_DIR_LIB := $(abspath $(LIBFS_DIR)/lib/rdma-core/build/lib)
+LEVELDB_LIB := $(abspath $(CURDIR)/lib/leveldb)
 
-INCLUDES  := $(addprefix -I, . $(NVML_DIR)/include $(CUCKOO_DIR) $(CUCKOO_FILTER_DIR)/src $(GLIB_DIR)/ $(GLIB_DIR)/glib $(RDMA_DIR) $(RDMA_CORE_DIR) $(SPDK_ROOT_DIR)/include)
+INCLUDES  := $(addprefix -I, . $(NVML_DIR)/include $(CUCKOO_DIR) $(CUCKOO_FILTER_DIR)/src $(GLIB_DIR)/ $(GLIB_DIR)/glib $(RDMA_DIR) $(RDMA_CORE_DIR) $(SPDK_ROOT_DIR)/include  $(LEVELDB_LIB)/include)
 
-LD_FLAGS = -lpthread -laio -lstdc++ -lm -L$(NVML_DIR)/nondebug/ -Wl,-rpath=$(abspath $(NVML_DIR)/nondebug) -lpmem -lrt -L$(RDMA_DIR) -Wl,-rpath=$(abspath $(RDMA_DIR)) -L$(RDMA_CORE_DIR_LIB) -Wl,-rpath=$(abspath $(RDMA_CORE_DIR_LIB))  -lrdma -lrdmacm -libverbs -ldl -luuid -lnuma -L$(SPDK_ROOT_DIR)
+LD_FLAGS = -lpthread -laio -lstdc++ -lm -L$(NVML_DIR)/nondebug/ -Wl,-rpath=$(abspath $(NVML_DIR)/nondebug) -lpmem -lrt -L$(RDMA_DIR) -Wl,-rpath=$(abspath $(RDMA_DIR)) -L$(RDMA_CORE_DIR_LIB) -Wl,-rpath=$(abspath $(RDMA_CORE_DIR_LIB))  -lrdma -lrdmacm -libverbs -ldl -luuid -lnuma -L$(SPDK_ROOT_DIR) -L$(LEVELDB_LIB)
 
 #MLFS_FLAGS = -DUSE_SLAB -DMLFS_INFO -DKERNFS
 MLFS_FLAGS = -DKERNFS
-#MLFS_FLAGS = -DKERNFS -DMLFS_INFO
+MLFS_FLAGS = -DKERNFS -DMLFS_INFO
 MLFS_FLAGS += -DKERNFS -DMLFS_DEBUG
 MLFS_FLAGS += -DDISTRIBUTED
 MLFS_FLAGS += -DMASTER
@@ -118,7 +119,7 @@ $(BUILD_DIR):
 #  Targets
 ########
 filesystem: $(OBJ) $(OBJCPP) $(SRC) $(HDER)
-	$(CC) -shared $(DEBUG) -o build/libkernfs.so $(OBJ) $(OBJCPP) -Wl,--whole-archive $(SPDK_LIBS) -Wl,--no-whole-archive $(LD_FLAGS) $(MLFS_FLAGS)
+	$(CC) -shared $(DEBUG) -o build/libkernfs.so $(OBJ) $(OBJCPP) -Wl,--whole-archive $(SPDK_LIBS) -Wl,--no-whole-archive $(LD_FLAGS) $(MLFS_FLAGS) -lleveldb
 
 ########
 #  Compile each source into an object
