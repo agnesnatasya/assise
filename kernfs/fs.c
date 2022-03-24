@@ -84,6 +84,9 @@ double persist_sec = 0;
 double digest_sec = 0;
 double run_sec = 0;
 int started = 0;
+struct db_adaptor *db_adaptor;
+leveldb_writeoptions_t *woptions;
+leveldb_readoptions_t *roptions;
 
 #if MLFS_LEASE
 struct sockaddr_un all_cli_addr[g_n_hot_rep];
@@ -98,85 +101,6 @@ int digest_unlink(uint8_t from_dev, uint8_t to_dev, int libfs_id, uint32_t inum)
 #define NTYPE_D 2
 #define NTYPE_F 3
 #define NTYPE_U 4
-
-#if 0
-typedef struct replay_node_key
-{
-	uint32_t inum;
-	uint16_t ver;
-} replay_key_t;
-
-/* It is important to place node_type right after struct list_head
- * since digest_log_from_replay_list compute node_type like this:
- * node_type = &list + sizeof(struct list_head)
- */
-typedef struct inode_replay {
-	replay_key_t key;
-	addr_t blknr; 
-	mlfs_hash_t hh;
-	struct list_head list;
-	uint8_t node_type;
-	uint8_t create;
-} i_replay_t;
-
-typedef struct d_replay_key {
-	uint32_t inum;
-	uint16_t ver;
-	uint8_t type;
-} d_replay_key_t;
-
-typedef struct directory_replay {
-	d_replay_key_t key;
-	int n;
-	uint32_t dir_inum;
-	uint32_t dir_size;
-	addr_t blknr;
-	mlfs_hash_t hh;
-	struct list_head list;
-	uint8_t node_type;
-} d_replay_t;
-
-typedef struct block_list {
-	struct list_head list;
-	uint32_t n;
-	addr_t blknr;
-} f_blklist_t;
-
-typedef struct file_io_vector {
-	offset_t hash_key;
-	struct list_head list;
-	offset_t offset;
-	uint32_t length;
-	addr_t blknr; 
-	uint32_t n_list;
-	struct list_head iov_blk_list;
-	mlfs_hash_t hh;
-} f_iovec_t;
-
-typedef struct file_replay {
-	replay_key_t key;
-	struct list_head iovec_list;
-	f_iovec_t *iovec_hash;
-	mlfs_hash_t hh;
-	struct list_head list;
-	uint8_t node_type;
-} f_replay_t;
-
-typedef struct unlink_replay {
-	replay_key_t key;
-	mlfs_hash_t hh;
-	struct list_head list;
-	uint8_t node_type;
-} u_replay_t;
-
-struct replay_list {
-	i_replay_t *i_digest_hash;
-	d_replay_t *d_digest_hash;
-	f_replay_t *f_digest_hash;
-	u_replay_t *u_digest_hash;
-	struct list_head head;
-};
-#endif
 
 struct digest_arg {
 	int sock_fd;
@@ -2096,6 +2020,51 @@ void locks_init(void)
 #endif
 }
 
+
+/* Store in a TableFS.
+Operations supported:
+- dir_lookup 
+	1. From name and parnet inode, get the inode and get the offset
+- dir_get_entry
+	1. From parent inode and offset, get the directory entry
+- dir_change_entry
+	1. dir_lookup
+	2. 
+	3. Remove the iput from the caller
+- dir_remove_entry
+	1.
+- dir_add_links
+- dir_add_entry
+*/
+
+void dirent_init() {
+	db_adaptor = create_db();
+	woptions = leveldb_writeoptions_create();
+	roptions = leveldb_readoptions_create();
+
+}
+// LevelDB Operations
+
+static unsigned int
+murmur_hash(const void *key, size_t keyLen, unsigned int hashmask)
+{
+    size_t i;
+    unsigned int h = 5381;
+
+    for (i=0; i<keyLen; ++i)
+    {
+        h += (h << 5) + ((const unsigned char *)key)[i];
+    }
+
+    return h & hashmask;
+}
+
+// TODO: Must change the name to an absolute path, cannot only the last one 
+static void build_meta_key(char *name, int len, int inum, char *k) {
+	uint hash_id = murmur_hash(name, len, 123);
+	strcat(hash_id, inum);
+}
+
 void init_fs(void)
 {
 	int i;
@@ -2111,6 +2080,7 @@ void init_fs(void)
 
 	init_device_lru_list();
 
+	dirent_init();
 	//shared_memory_init();
 
 	cache_init(g_root_dev);
@@ -2225,10 +2195,18 @@ void init_fs(void)
 //////////////////////////////////////////////////////////////////////////
 // KernFS signal callback (used to handle signaling between replicas)
 
+bool is_dir_cmd(char *cmd_hdr) {
+	if (cmd_hdr[0] == 'd' && cmd_hdr[1] == 'i' && cmd_hdr[2] == 'r') {
+		return true;
+	}
+	return false
+}
 #ifdef DISTRIBUTED
 void signal_callback(struct app_context *msg)
 {
 	char cmd_hdr[12];
+	char *path;
+	int dir_inum;
 	// handles 4 message types (bootstrap, log, digest, lease)
 	if(msg->data) {
 		sscanf(msg->data, "|%s |", cmd_hdr);
@@ -2238,8 +2216,24 @@ void signal_callback(struct app_context *msg)
 		cmd_hdr[0] = 'i';
 	}
 
+	// dir related request
+	if (is_dir_cmd(cmd_hdr)) {
+		// dir lookup request
+		if (cmd_hdr[4] == "l") {
+			printf("peer recv: %s\n", msg->data);
+			sscanf(msg->data, "|%s |%s|%d|", cmd_hdr, &path, &dir_inum);
+		
+			build_meta_key(path, strlen(path), dir_inum, k);
+			char *read = leveldb_get(db_adaptor->db, roptions, k, sizeof(k), dir_inode->size, NULL);
+		}
+		// dir get entry request
+		else if (cmd_hdr[4] == "g") {
+
+		}
+		
+	}
 	// digest request
-	if (cmd_hdr[0] == 'd') {
+	else if (cmd_hdr[0] == 'd') {
 		//int dev, percent, steps;
 		//uint32_t n_digest;
 		//addr_t start_blk, log_end;
