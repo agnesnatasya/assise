@@ -15,55 +15,6 @@
 #include "distributed/rpc_interface.h"
 #endif
 
-struct db_adaptor *db_adaptor;
-leveldb_writeoptions_t *woptions;
-leveldb_readoptions_t *roptions;
-
-/* Store in a TableFS.
-Operations supported:
-- dir_lookup 
-	1. From name and parnet inode, get the inode and get the offset
-- dir_get_entry
-	1. From parent inode and offset, get the directory entry
-- dir_change_entry
-	1. dir_lookup
-	2. 
-	3. Remove the iput from the caller
-- dir_remove_entry
-	1.
-- dir_add_links
-- dir_add_entry
-*/
-
-
-void dirent_init() {
-	db_adaptor = create_db();
-	woptions = leveldb_writeoptions_create();
-	roptions = leveldb_readoptions_create();
-
-}
-// LevelDB Operations
-
-static unsigned int
-murmur_hash(const void *key, size_t keyLen, unsigned int hashmask)
-{
-    size_t i;
-    unsigned int h = 5381;
-
-    for (i=0; i<keyLen; ++i)
-    {
-        h += (h << 5) + ((const unsigned char *)key)[i];
-    }
-
-    return h & hashmask;
-}
-
-// Must change the name to an absolut path, cannot only the last one 
-static void build_meta_key(char *name, int len, int inum, char *k) {
-	uint hash_id = murmur_hash(name, len, 123);
-	strcat(hash_id, inum);
-}
-
 int namecmp(const char *s, const char *t)
 {
 	return strncmp(s, t, DIRSIZ);
@@ -82,15 +33,29 @@ int get_dirent(struct inode *dir_inode, struct mlfs_dirent *buf, offset_t offset
 	return readi(dir_inode, &reply, offset, sizeof(struct mlfs_dirent), NULL); // returns the number of io done
 }
 
+// RPC response update
+void update_ip_of_inum(char* parent_path, char *de_name, int de_inum) {
+	struct inode *dir_inode;
+	
+	/* Comment: this is funny because you go back to this function, but otherwise cannot cos it's hard to comm inode through RPC */
+	// get the inode from the full path
+	dir_inode = dlookup_find(parent_path); 
+
+	// add entry to cache
+	de_cache_add(dir_inode, de_name, de_inum, off);
+
+}
+
 // Lookup an inode by name and return offset of its directory entry
 // Note: dir_inode should be locked by calling ilock() before using this function
-struct inode *dir_lookup(struct inode *dir_inode, char *name, offset_t *poff)
+struct inode *dir_lookup(struct inode *dir_inode, char *path, char *name, offset_t *poff)
 {
 	struct mlfs_dirent de;
 	struct inode *ip = NULL;
 	int n_de_cache = 0;
 	offset_t off;
 	char *k;
+	char parent_path[MAX_PATH];
 
 	//pthread_rwlock_wrlock(g_debug_rwlock);
 
@@ -106,21 +71,30 @@ struct inode *dir_lookup(struct inode *dir_inode, char *name, offset_t *poff)
 	// might need to change this in the future
 	n_de_cache = dir_inode->n_de_cache_entry + 2;
 	if (n_de_cache * sizeof(struct mlfs_dirent) == dir_inode->size) {
-		mlfs_debug("%s\n", "not found w/ full de cache - skipping iteration");
+		mlfs_debug("%s\n", "not found w/ full de cache - skipping search");
 		//pthread_rwlock_unlock(g_debug_rwlock);
 		return NULL;
 	}
 
-	// build_meta_key(name, strlen(name), dir_inode->inum, k);
-  // char *read = leveldb_get(db_adaptor->db, roptions, k, sizeof(k), dir_inode->size, NULL);
-	
-	sprintf(cmd, "|digest |%d|%d|%u|%lu|%lu|%lu",
-			g_self_id, g_log_dev, g_fs_log->n_digest_req, g_log_sb->start_digest,
-		       	 g_fs_log->log_sb_blk + 1, atomic_load(&g_log_sb->end));
+	mlfs_debug("dir_lookup: contacting KernFS");
 
-	mlfs_printf("%s\n", cmd);
+	get_parent_path(path, parent_path, name);
 
-	rpc_forward_msg(g_kernfs_peers[g_kernfs_id]->sockfd[SOCK_BG], cmd);
+	// to get the de inum and de name
+	rpc_remote_dir_lookup_sync(parent_path, dir_inode.inum, 1);
+
+	// re-search cos it's been added by the RPC call	
+	ip = de_cache_find(dir_inode, name, poff); // TODO: bikin dia return de_name
+
+	if(!ip) {
+		ip = iget(de_inum);
+	}
+
+	if (!namecmp(name, name)) { // TODO: change jadi de_name
+		//pthread_rwlock_unlock(g_debug_rwlock);
+		*poff = off;
+		return ip;
+	}
 
 	/*
 	mlfs_debug("dir_lookup: starting search for name %s (dirs: cached %d total %ld)\n",
@@ -325,8 +299,8 @@ struct mlfs_dirent *dir_add_entry(struct inode *dir_inode, char *name, struct in
 
 	// append to directory file
 	mlfs_debug("adding new dirent to dir inode %u: %s ~ %u at offset %lu\n", dir_inode->inum, name, ip->inum, dir_inode->size);
-	add_to_log(dir_inode, (uint8_t *) new_de, off, sizeof(struct mlfs_dirent), L_TYPE_DIR_ADD); // to be able to be replicated, not sure if I should remove this or not
-
+	// add_to_log(dir_inode, (uint8_t *) new_de, off, sizeof(struct mlfs_dirent), L_TYPE_DIR_ADD); // to be able to be replicated, not sure if I should remove this or not
+	// have to be communicated immediately. if we wait for the digest, might result in stale read. 
 	de_cache_add(dir_inode, name, ip, off);
 
 	return new_de;
