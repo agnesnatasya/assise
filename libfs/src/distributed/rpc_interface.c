@@ -366,6 +366,29 @@ int rpc_remote_read_sync(char *path, loff_t offset, uint32_t io_size, uint8_t *d
 	return 0;
 }
 
+int rpc_remote_dir_lookup_sync(char *path, int inum, uint8_t *dst) {
+	// Contact localhost
+	int sockfd = g_kernfs_peers[0]->sockfd[SOCK_IO];
+	struct app_context *msg;
+	int buffer_id = MP_ACQUIRE_BUFFER(sockfd, &msg);
+	
+	msg->id = generate_rpc_seqn(g_rpc_socks[sockfd]);
+	
+	snprintf(msg->data, RPC_MSG_BYTES, "|lookup |%s |%d|%u|%lu", path, inum, (uintptr_t)dst);
+	mlfs_info("trigger sync remote read: path[%s] inum[%d]\n",
+			path, inum);
+
+	//we still send an async msg, since we want to synchronously wait for the msg response and not
+	//rdma-send completion
+	MP_SEND_MSG_ASYNC(sockfd, buffer_id, 1);
+
+	//spin till we receive a response with the same sequence number
+	//this is part of the messaging protocol that the remote peer should adhere to
+	MP_AWAIT_RESPONSE(sockfd, msg->id);
+
+	return 0;
+}
+
 //send back response for read rpc
 //note: responses are always asynchronous
 int rpc_remote_read_response(int sockfd, rdma_meta_t *meta, int mr_local, uint32_t seq_n)
@@ -379,28 +402,6 @@ int rpc_remote_read_response(int sockfd, rdma_meta_t *meta, int mr_local, uint32
 	else
 		IBV_WRAPPER_WRITE_ASYNC(sockfd, meta, mr_local, MR_DRAM_CACHE);
 }
-
-//deprecated
-#if 0
-int rpc_remote_read_response(uintptr_t src, uintptr_t dst, uint16_t io_size, int mr_local, uint32_t seq_n)
-{
-	//responses are sent from specified local memory region to requester's read cache
-	
-	rdma_meta_t *meta = (rdma_meta_t*) mlfs_zalloc(sizeof(rdma_meta_t) + sizeof(struct ibv_sge));
-	meta->addr = dst;
-	meta->length = io_size;
-	meta->sge_count = 1;
-	meta->sge_entries[0].addr = (uintptr_t) data;
-	meta->sge_entries[0].length = io_size;
-	
-	if(seq_n) {
-		meta->imm = seq_n; //set immediate to sequence number in order for requester to match it (in case of io wait)
-		IBV_WRAPPER_WRITE_WITH_IMM_ASYNC(g_sockfd, meta, mr_local, MR_DRAM_CACHE);
-	}
-	else
-		IBV_WRAPPER_WRITE_ASYNC(g_sockfd, meta, mr_local, MR_DRAM_CACHE);
-}
-#endif
 
 int rpc_lease_change(int mid, int rid, uint32_t inum, int type, uint32_t version, addr_t blknr, int sync)
 {
