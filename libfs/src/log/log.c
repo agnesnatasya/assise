@@ -1330,14 +1330,21 @@ int mlfs_do_rsync()
 #if defined(DISTRIBUTED) && defined(MASTER)
 
 #if !defined(CC_OPT)
+	mlfs_debug("%s\n", "Part 1");
 	make_replication_request_sync(get_next_peer());
+	mlfs_debug("%s\n", "Part 2");
 #endif
 
 #ifdef LOG_OPT
+	mlfs_debug("%s\n", "Part 3");
 	struct logheader_meta *loghdr_meta;
+	mlfs_debug("%s\n", "Part 4");
 	loghdr_meta = get_loghdr_meta();
+	mlfs_debug("%s\n", "Part 5");
 	mlfs_assert(loghdr_meta);
+	mlfs_debug("%s\n", "Part 6");
 	loghdr_meta->is_hdr_locked = true;
+	mlfs_debug("%s\n", "Part 7");
 #endif
 
 #endif
@@ -1353,6 +1360,12 @@ bool is_dir_cmd(char *cmd_hdr) {
 	return false;
 }
 
+// RPC response update
+void *set_inum_of_de_in_search(int de_inum, char *de_name) {
+	inum_of_de_in_search = de_inum;
+	name_of_de_in_search = de_name;
+}
+
 #ifdef DISTRIBUTED
 void signal_callback(struct app_context *msg)
 {
@@ -1366,16 +1379,20 @@ void signal_callback(struct app_context *msg)
 		cmd_hdr[0] = 'i';
 	}
 
+
 	// master/slave callbacks
 	// handles 2 message types (digest)
 	if (is_dir_cmd(cmd_hdr)) {
-		if (cmd_hdr[4] == "l") {
+		if (cmd_hdr[4] == 'l') {
+			mlfs_debug("received rpc with body: %s on sockfd %d %s %d 2, id is %d\n", msg->data, msg->sockfd, cmd_hdr, is_dir_cmd(cmd_hdr), msg->id);
 			uint32_t seq_n;
 			int dir_inum;
-			char *de_name;
+			char de_name[MAX_PATH];
 			int de_inum;
-			sscanf(msg->data, "|%s |%d|%s|%d", cmd_hdr, & &dir_inum, &de_name, &de_inum);
-			update_ip_of_inum(de_inum, de_name, de_inum);
+			sscanf(msg->data, "|%s |%d|%s |%d", cmd_hdr, &dir_inum, de_name, &de_inum);
+			mlfs_debug("This is the de_inum of %s under inode %d: %d\n", de_name, dir_inum, de_inum);
+			set_inum_of_de_in_search(de_inum, de_name);
+			mlfs_debug("This is the de_inum of %s under inode %d: %d 2\n", de_name, dir_inum, de_inum);
 		}
 	}
 	else if (cmd_hdr[0] == 'b') {
