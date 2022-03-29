@@ -142,7 +142,6 @@ extern pthread_rwlock_t *dcache_rwlock;
 extern pthread_rwlock_t *dlookup_rwlock;
 extern pthread_rwlock_t *invalidate_rwlock;
 extern pthread_rwlock_t *g_fcache_rwlock;
-extern pthread_rwlock_t *de_rpc_response_rwlock;
 
 extern struct inode *inode_hash;
 extern struct dlookup_data *dlookup_hash;
