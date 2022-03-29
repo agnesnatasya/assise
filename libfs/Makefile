@@ -44,7 +44,7 @@ RDMA_DIR := $(abspath $(CURDIR)/lib/rdma)
 RDMA_CORE_DIR := $(abspath $(CURDIR)/lib/rdma-core)
 SYSCALL_INTERCEPT_DIR := $(abspath $(CURDIR)/lib/syscall_intercept/install/)
 
-INCLUDES  := $(addprefix -I,src/ $(RDMA_CORE_DIR)/build/include $(RDMA_DIR) $(NVML_DIR)/include $(SYSCALL_INTERCEPT_DIR)/include $(LEVELDB_LIB)/include)
+INCLUDES  := $(addprefix -I,src/ $(RDMA_CORE_DIR)/build/include $(RDMA_DIR) $(NVML_DIR)/include $(SYSCALL_INTERCEPT_DIR)/include)
 
 LD_FLAGS = -lpthread -laio -lstdc++ -lm -lnuma -L$(NVML_DIR)/nondebug/ -Wl,-rpath=$(abspath $(NVML_DIR)/nondebug) -lpmem -lrt -L$(RDMA_CORE_DIR)/build/lib -Wl,-rpath=$(RDMA_CORE_DIR)/build/lib -L$(RDMA_DIR) -lrdmacm -libverbs -lpthread -Wl,-rpath=$(abspath $(RDMA_DIR)) -lrdma #-Wl,-fuse-ld=gold
 
@@ -67,7 +67,7 @@ MLFS_FLAGS += -DLAZY_SURRENDER
 MLFS_FLAGS += -DINVALIDATION
 MLFS_FLAGS += -DKLIB_HASH
 #MLFS_FLAGS += -DUSE_SSD
-MLFS_FLAGS += -DUSE_HDD
+#MLFS_FLAGS += -DUSE_HDD
 #MLFS_FLAGS += -DMLFS_LOG
 
 #DEBUG = -g3 -O0
