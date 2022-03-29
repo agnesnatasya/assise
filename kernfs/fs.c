@@ -20,6 +20,9 @@
 #include "filesystem/slru.h"
 #include "migrate.h"
 
+#include "db_adaptor.h"
+#include "leveldb/c.h"
+
 #ifdef DISTRIBUTED
 #include "distributed/rpc_interface.h"
 #include "distributed/replication.h"
@@ -94,6 +97,32 @@ int addr_idx = 0;
 #endif
 
 DECLARE_BITMAP(g_log_bitmap, g_n_max_libfs);
+
+static unsigned int
+murmur_hash(const void *path, size_t path_len, unsigned int hashmask)
+{
+    size_t i;
+    unsigned int h = 5381;
+
+    for (i=0; i<path_len; ++i)
+    {
+        h += (h << 5) + ((const unsigned char *)path)[i];
+    }
+
+    return h & hashmask;
+}
+
+// TODO: Must change the name to an absolute path, cannot only the last one 
+static char * build_meta_key(char *name, int len, int dir_inum) {
+	uint hash_id = murmur_hash(name, len, 123);
+	char *meta_key = malloc(1000);
+	mlfs_debug("this is the hash %d\n", hash_id);
+	snprintf(meta_key, 1000, "%d%d", dir_inum, hash_id);
+	mlfs_debug("This is the key final moment %s\n", meta_key);
+	return meta_key;
+}
+
+// LevelDB Operations
 
 int digest_unlink(uint8_t from_dev, uint8_t to_dev, int libfs_id, uint32_t inum);
 
@@ -880,6 +909,7 @@ static void digest_each_log_entries(uint8_t from_dev, int libfs_id, loghdr_meta_
 	loghdr_t *loghdr;
 	uint16_t nr_entries;
 	uint64_t tsc_begin;
+	char *k;
 
 	nr_entries = loghdr_meta->loghdr->n;
 	loghdr = loghdr_meta->loghdr;
@@ -898,23 +928,28 @@ static void digest_each_log_entries(uint8_t from_dev, int libfs_id, loghdr_meta_
 					tsc_begin = asm_rdtscp();
 
 				// Agnes' change
-				/*
+				
 				ret = digest_inode(from_dev,
 						g_root_dev,
 						libfs_id,
 						loghdr->inode_no[i], 
 						loghdr->blocks[i] + loghdr_meta->hdr_blkno);
 				mlfs_assert(!ret);
-				*/
-
 
 				if (enable_perf_stats)
 					g_perf_stats.digest_inode_tsc +=
 						asm_rdtscp() - tsc_begin;
 				break;
 			}
+			// next change
 			case L_TYPE_DIR_ADD: 
+				printf("this is the data %s", loghdr->data[i]);
+				build_meta_key(loghdr->data[i], strlen(loghdr->data[i]),loghdr->inode_no[i]);
+  			leveldb_put(db_adaptor->db, woptions, k, sizeof(k), loghdr->inode_no[i], 4, NULL);
+				break;
+			// next change
 			case L_TYPE_DIR_RENAME: 
+			// next change
 			case L_TYPE_DIR_DEL:
 			case L_TYPE_FILE: {
 				uint8_t dest_dev = g_root_dev;
@@ -927,8 +962,9 @@ static void digest_each_log_entries(uint8_t from_dev, int libfs_id, loghdr_meta_
 				// for NVM bypassing test
 				//dest_dev = g_ssd_dev;
 #endif
-				// Agnes' change
-				/*ret = digest_file(from_dev, 
+				// int digest_file(uint8_t from_dev, uint8_t to_dev, int libfs_id, uint32_t file_inum, offset_t offset, uint32_t length, addr_t blknr)
+
+				ret = digest_file(from_dev, 
 						dest_dev,
 						libfs_id,
 						loghdr->inode_no[i], 
@@ -936,8 +972,6 @@ static void digest_each_log_entries(uint8_t from_dev, int libfs_id, loghdr_meta_
 						loghdr->length[i],
 						loghdr->blocks[i] + loghdr_meta->hdr_blkno);
 				mlfs_assert(!ret);
-				*/
-				
 
 				if (enable_perf_stats)
 					g_perf_stats.digest_file_tsc +=
@@ -2037,33 +2071,13 @@ Operations supported:
 - dir_add_entry
 */
 
-void dirent_init() {
+void dirent_init(void) {
 	db_adaptor = create_db();
 	woptions = leveldb_writeoptions_create();
 	roptions = leveldb_readoptions_create();
 
 }
-// LevelDB Operations
 
-static unsigned int
-murmur_hash(const void *key, size_t keyLen, unsigned int hashmask)
-{
-    size_t i;
-    unsigned int h = 5381;
-
-    for (i=0; i<keyLen; ++i)
-    {
-        h += (h << 5) + ((const unsigned char *)key)[i];
-    }
-
-    return h & hashmask;
-}
-
-// TODO: Must change the name to an absolute path, cannot only the last one 
-static void build_meta_key(char *name, int len, int inum, char *k) {
-	uint hash_id = murmur_hash(name, len, 123);
-	strcat(hash_id, inum);
-}
 
 void init_fs(void)
 {
@@ -2199,13 +2213,13 @@ bool is_dir_cmd(char *cmd_hdr) {
 	if (cmd_hdr[0] == 'd' && cmd_hdr[1] == 'i' && cmd_hdr[2] == 'r') {
 		return true;
 	}
-	return false
+	return false;
 }
+
 #ifdef DISTRIBUTED
 void signal_callback(struct app_context *msg)
 {
 	char cmd_hdr[12];
-	char *path;
 	int dir_inum;
 	// handles 4 message types (bootstrap, log, digest, lease)
 	if(msg->data) {
@@ -2216,15 +2230,27 @@ void signal_callback(struct app_context *msg)
 		cmd_hdr[0] = 'i';
 	}
 
+	// next change
 	// dir related request
 	if (is_dir_cmd(cmd_hdr)) {
 		// dir lookup request
-		if (cmd_hdr[4] == "l") {
+		if (cmd_hdr[4] == 'l') {
+			char name[MAX_PATH];
+			int dir_inum;
+			
 			printf("peer recv: %s\n", msg->data);
-			sscanf(msg->data, "|%s |%s|%d|", cmd_hdr, &path, &dir_inum);
-		
-			build_meta_key(path, strlen(path), dir_inum, k);
-			char *read = leveldb_get(db_adaptor->db, roptions, k, sizeof(k), dir_inode->size, NULL);
+			sscanf(msg->data, "|%s |%d|%s", cmd_hdr, &dir_inum, name);
+			mlfs_debug("key built with %s at inode %d\n", name, dir_inum);
+			char *k;
+			char *err = NULL;
+			size_t read_len;
+			k = build_meta_key(name, strlen(name), dir_inum);
+			mlfs_debug("key built with %s at inode %d\n", name, dir_inum);
+			mlfs_debug("This is the db %p %d %d\n", db_adaptor->db, k, sizeof(k));
+			mlfs_debug("This is the key %s %d\n", k, sizeof(k));
+			char *read = leveldb_get(db_adaptor->db, roptions, k, sizeof(k), &read_len, &err);
+			mlfs_debug("This is the read result %d %s\n", read_len, err);
+			rpc_send_dir_lookup(msg->sockfd, msg->id, dir_inum, name, read);
 		}
 		// dir get entry request
 		else if (cmd_hdr[4] == "g") {
