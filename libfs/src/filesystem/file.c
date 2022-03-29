@@ -23,7 +23,6 @@ void mlfs_file_init(void)
 {
 	g_fd_table.open_files_ht = NULL;
 	pthread_spin_init(&g_fd_table.lock, PTHREAD_PROCESS_SHARED); 
-	dirent_init();
 }
 
 /*
@@ -327,7 +326,7 @@ struct inode *mlfs_object_create(char *path, unsigned short type)
 	ilock(parent_inode);
 
 #if 1
-	inode = dir_lookup(parent_inode, name, &offset);
+	inode = dir_lookup(parent_inode, path, name, &offset);
 	if (inode) {
 		mlfs_debug("mlfs_object_create: already found in dir %s\n", path);
 		iunlock(parent_inode);

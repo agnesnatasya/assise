@@ -55,6 +55,7 @@ struct lru g_fcache_head;
 pthread_rwlock_t *icreate_rwlock;
 pthread_rwlock_t *icache_rwlock;
 pthread_rwlock_t *dlookup_rwlock;
+pthread_rwlock_t *de_rpc_response_rwlock;
 pthread_rwlock_t *invalidate_rwlock;
 pthread_rwlock_t *g_fcache_rwlock;
 
@@ -69,6 +70,7 @@ SharedTable *lease_table;
 
 struct inode *inode_hash;
 struct dlookup_data *dlookup_hash;
+struct de_rpc_response *de_rpc_response_hash;
 
 struct list_head *lru_heads;
 
@@ -281,6 +283,7 @@ static void cache_init(void)
 	inode_hash = NULL;
 	dlookup_hash = NULL;
 	lru_hash = NULL;
+	de_rpc_response_hash = NULL;
 #if MLFS_LEASE
 	lease_table = SharedTable_mock();
 	assert(lease_table);
@@ -315,6 +318,7 @@ static void locks_init(void)
 	//icache_rwlock = (pthread_rwlock_t *)mlfs_zalloc(sizeof(pthread_rwlock_t));
 
 	dlookup_rwlock = (pthread_rwlock_t *)mlfs_zalloc(sizeof(pthread_rwlock_t));
+	de_rpc_response_rwlock = (pthread_rwlock_t *)mlfs_zalloc(sizeof(pthread_rwlock_t));
 	invalidate_rwlock = (pthread_rwlock_t *)mlfs_zalloc(sizeof(pthread_rwlock_t));
 	g_fcache_rwlock = (pthread_rwlock_t *)mlfs_zalloc(sizeof(pthread_rwlock_t));
 
@@ -326,6 +330,7 @@ static void locks_init(void)
 	pthread_rwlock_init(icache_rwlock, &rwlattr);
 	pthread_rwlock_init(icreate_rwlock, &rwlattr);
 	pthread_rwlock_init(dlookup_rwlock, &rwlattr);
+	pthread_rwlock_init(de_rpc_response_rwlock, &rwlattr);
 	pthread_rwlock_init(invalidate_rwlock, &rwlattr);
 	pthread_rwlock_init(g_fcache_rwlock, &rwlattr);
 

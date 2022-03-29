@@ -580,7 +580,7 @@ int mlfs_posix_unlink(const char *filename)
 	//acquire_lease(dir_inode, LEASE_WRITE, parent_path);
 #endif
 	
-	log_entry = dir_remove_entry(dir_inode, name, &inode);
+	log_entry = dir_remove_entry(dir_inode, filename, name, &inode);
 	if (!inode) {
 		abort_log_tx();
 		return -ENOENT;
@@ -674,7 +674,7 @@ int mlfs_posix_rename(char *oldpath, char *newpath)
 	old_dir_inode = nameiparent((char *)oldpath, old_file_name);
 	new_dir_inode = nameiparent((char *)newpath, new_file_name);
 
-	log_replaced = dir_remove_entry(new_dir_inode, new_file_name, &ip);
+	log_replaced = dir_remove_entry(new_dir_inode, oldpath, new_file_name, &ip);
 	if (ip) {
 		dlookup_del(newpath);
 		iput(ip);
@@ -686,7 +686,7 @@ int mlfs_posix_rename(char *oldpath, char *newpath)
 		// rename within directory
 		dlookup_del(oldpath);
 
-		log_new = dir_change_entry(new_dir_inode, old_file_name, new_file_name);
+		log_new = dir_change_entry(new_dir_inode, oldpath, old_file_name, new_file_name);
 		iput(old_dir_inode);
 		iput(new_dir_inode);
 			
@@ -720,7 +720,7 @@ int mlfs_posix_rename(char *oldpath, char *newpath)
 		// rename across directories
 		dlookup_del(oldpath);
 
-		log_old = dir_remove_entry(old_dir_inode, old_file_name, &ip);
+		log_old = dir_remove_entry(old_dir_inode, oldpath, old_file_name, &ip);
 		if (!ip) {
 			iput(old_dir_inode);
 			iput(new_dir_inode);

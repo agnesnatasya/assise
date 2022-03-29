@@ -3,9 +3,6 @@
 #include "log/log.h"
 #include "global/global.h"
 #include "concurrency/thread.h"
-#include "filesystem/db_adaptor.h"
-
-#include "leveldb/c.h"
 
 #if MLFS_LEASE
 #include "experimental/leases.h"
@@ -34,20 +31,20 @@ int get_dirent(struct inode *dir_inode, struct mlfs_dirent *buf, offset_t offset
 }
 
 // RPC response update
-void update_ip_of_inum(char* parent_path, char *de_name, int de_inum) {
-	struct inode *dir_inode;
+void *update_ip_of_inum(int dir_inum, char *de_name, int de_inum) {
+	struct de_rpc_response *response;
 	
-	/* Comment: this is funny because you go back to this function, but otherwise cannot cos it's hard to comm inode through RPC */
-	// get the inode from the full path
-	dir_inode = dlookup_find(parent_path); 
-
-	// add entry to cache
-	de_cache_add(dir_inode, de_name, de_inum, off);
+	response = (struct de_rpc_response *)mlfs_zalloc(sizeof(*response));
+	response->de_inum = de_inum;
+	response->de_name = de_name;
+	// response = {.de_inum = de_inum, .de_name = de_name}
+	de_rpc_response_add(strcat(parent_path, de_name), response); // TooDO: change to 1 var
 
 }
 
 // Lookup an inode by name and return offset of its directory entry
 // Note: dir_inode should be locked by calling ilock() before using this function
+// TODO: revert back, path is not needed
 struct inode *dir_lookup(struct inode *dir_inode, char *path, char *name, offset_t *poff)
 {
 	struct mlfs_dirent de;
@@ -76,21 +73,29 @@ struct inode *dir_lookup(struct inode *dir_inode, char *path, char *name, offset
 		return NULL;
 	}
 
-	mlfs_debug("dir_lookup: contacting KernFS");
+	mlfs_debug("%s\n", "dir_lookup: contacting KernFS");
 
-	get_parent_path(path, parent_path, name);
-
+	// get_parent_path(path, parent_path, name);
+	
+	// mlfs_debug("This is the path %s\n", path);
+	// mlfs_debug("This is the parent path %s %d\n", parent_path, strlen(parent_path));
+	// if (strlen(parent_path) == 0) {
+	// 	strcat(parent_path, "/");
+	// 	mlfs_debug("This is the path %s\n", path);
+	// 	mlfs_debug("This is the parent path %s\n", parent_path);
+	// }
 	// to get the de inum and de name
-	rpc_remote_dir_lookup_sync(parent_path, dir_inode.inum, 1);
+	rpc_remote_dir_lookup_sync(name, dir_inode->inum, 1);
+	// rpc_remote_dir_lookup_sync(name, dir_inode->inum, 1);
 
 	// re-search cos it's been added by the RPC call	
-	ip = de_cache_find(dir_inode, name, poff); // TODO: bikin dia return de_name
+	struct de_rpc_response *response = de_rpc_response_find(dir_inode->inum, name);
 
 	if(!ip) {
-		ip = iget(de_inum);
+		ip = iget(response->de_inum);
 	}
 
-	if (!namecmp(name, name)) { // TODO: change jadi de_name
+	if (!namecmp(response->de_name, name)) { // TODO: change jadi de_name
 		//pthread_rwlock_unlock(g_debug_rwlock);
 		*poff = off;
 		return ip;
@@ -177,14 +182,14 @@ int dir_get_entry64(struct inode *dir_inode, struct linux_dirent64 *buf, offset_
 }
 
 
-struct mlfs_dirent *dir_change_entry(struct inode *dir_inode, char *oldname, char *newname)
+struct mlfs_dirent *dir_change_entry(struct inode *dir_inode, char* path, char *oldname, char *newname)
 {
 	struct inode *ip;
 	struct mlfs_dirent *new_de;
 	offset_t de_off;
 
 	//ilock(dir_inode);
-	ip = dir_lookup(dir_inode, oldname, &de_off);
+	ip = dir_lookup(dir_inode, path, oldname, &de_off);
 	if (!ip) {
 		//iunlock(dir_inode);
 		return NULL;
@@ -209,7 +214,7 @@ struct mlfs_dirent *dir_change_entry(struct inode *dir_inode, char *oldname, cha
 	return new_de;
 }
 
-struct mlfs_dirent *dir_remove_entry(struct inode *dir_inode, char *name, struct inode **found)
+struct mlfs_dirent *dir_remove_entry(struct inode *dir_inode, char* path, char *name, struct inode **found)
 {
 	struct inode *ip = NULL;
 	struct mlfs_dirent *last = NULL;
@@ -217,7 +222,7 @@ struct mlfs_dirent *dir_remove_entry(struct inode *dir_inode, char *name, struct
 	offset_t de_off;
 
 	//ilock(dir_inode);
-	ip = dir_lookup(dir_inode, name, &de_off);
+	ip = dir_lookup(dir_inode, path, name, &de_off);
 	if (!ip) {
 		//iunlock(dir_inode);
 		*found = NULL;
@@ -282,28 +287,47 @@ struct mlfs_dirent *dir_add_links(struct inode *dir_inode, uint32_t inum, uint32
 
 struct mlfs_dirent *dir_add_entry(struct inode *dir_inode, char *name, struct inode *ip)
 {
+
 	struct mlfs_dirent *new_de;
 	offset_t off;
-	offset_t de_off;
-	char *k;
-
-	// LevelDB Operations
-	// To create the key and put it in the DB
-	build_meta_key(name, strlen(name), ip->inum, k);
-  leveldb_put(db_adaptor->db, woptions, k, sizeof(k), dir_inode, dir_inode->size, NULL);
 
 	new_de = mlfs_zalloc(sizeof(struct mlfs_dirent));
+
 	new_de->inum = ip->inum;
 	strncpy(new_de->name, name, DIRSIZ);
 	off = dir_inode->size;
 
 	// append to directory file
 	mlfs_debug("adding new dirent to dir inode %u: %s ~ %u at offset %lu\n", dir_inode->inum, name, ip->inum, dir_inode->size);
-	// add_to_log(dir_inode, (uint8_t *) new_de, off, sizeof(struct mlfs_dirent), L_TYPE_DIR_ADD); // to be able to be replicated, not sure if I should remove this or not
-	// have to be communicated immediately. if we wait for the digest, might result in stale read. 
+	// int add_to_log(struct inode *ip, uint8_t *data, offset_t off, uint32_t size, uint8_t ltype)
+	add_to_log(dir_inode, (uint8_t *) name, off, sizeof(struct mlfs_dirent), L_TYPE_DIR_ADD);
+
 	de_cache_add(dir_inode, name, ip, off);
 
 	return new_de;
+
+	// struct mlfs_dirent *new_de;
+	// offset_t off;
+	// offset_t de_off;
+	// char *k;
+
+	// // LevelDB Operations
+	// // To create the key and put it in the DB
+	// build_meta_key(name, strlen(name), ip->inum, k);
+  // leveldb_put(db_adaptor->db, woptions, k, sizeof(k), dir_inode, dir_inode->size, NULL);
+
+	// new_de = mlfs_zalloc(sizeof(struct mlfs_dirent));
+	// new_de->inum = ip->inum;
+	// strncpy(new_de->name, name, DIRSIZ);
+	// off = dir_inode->size;
+
+	// // append to directory file
+	// mlfs_debug("adding new dirent to dir inode %u: %s ~ %u at offset %lu\n", dir_inode->inum, name, ip->inum, dir_inode->size);
+	// // add_to_log(dir_inode, (uint8_t *) new_de, off, sizeof(struct mlfs_dirent), L_TYPE_DIR_ADD); // to be able to be replicated, not sure if I should remove this or not
+	// // have to be communicated immediately. if we wait for the digest, might result in stale read. 
+	// de_cache_add(dir_inode, name, ip, off);
+
+	// return new_de;
 }
 
 // Paths
@@ -321,9 +345,11 @@ static struct inode* namex(char *path, int parent, char *name)
 	char current_path[MAX_PATH];
 	current_path[0] = '\0';
 #endif
+	char* full_path;
 	char namespace_id[DIRSIZ] = {'\0'};
 	uint32_t namespace_inum;
 
+	full_path = path;
 	if (*path == '/') {
 		ip = iget(ROOTINO);
 	}
@@ -344,7 +370,7 @@ static struct inode* namex(char *path, int parent, char *name)
 			iunlock(ip);
 			return ip;
 		}
-		if ((next = dir_lookup(ip, name, &off)) == NULL) {
+		if ((next = dir_lookup(ip, full_path, name, &off)) == NULL) {
 			iunlockput(ip);
 			return NULL;
 		}
