@@ -15,7 +15,6 @@
 #endif
 
 #include <pthread.h>
-#include <unistd.h>
 
 struct open_file_table g_fd_table;
 
@@ -82,22 +81,22 @@ struct file* mlfs_file_alloc(void)
 	return NULL;
 }
 
-// // Increment ref count for file f.
-// struct file* mlfs_file_dup(struct file *f)
-// {
+// Increment ref count for file f.
+struct file* mlfs_file_dup(struct file *f)
+{
 
-// 	panic("not supported\n");
+	panic("not supported\n");
 
-// 	pthread_rwlock_wrlock(&f->rwlock);
+	pthread_rwlock_wrlock(&f->rwlock);
 	
-// 	if(f->ref < 1)
-// 		panic("filedup");
-// 	f->ref++;
+	if(f->ref < 1)
+		panic("filedup");
+	f->ref++;
 
-// 	pthread_rwlock_unlock(&f->rwlock);
+	pthread_rwlock_unlock(&f->rwlock);
 	
-// 	return f;
-// }
+	return f;
+}
 
 int mlfs_file_close(struct file *f)
 {
@@ -159,8 +158,7 @@ ssize_t mlfs_file_read(struct file *f, struct mlfs_reply *reply, size_t n)
 			return 0;
 		}
 
-		// r = readi(f->ip, reply, f->off, n, f->path);
-		r = read(f->fd, reply, n);
+		r = readi(f->ip, reply, f->off, n, f->path);
 		if (r < 0) 
 			panic("read error\n");
 
@@ -226,13 +224,128 @@ int mlfs_file_write(struct file *f, uint8_t *buf, size_t n, offset_t offset)
 	*/
 
 	if (f->type == FD_INODE) {
+		/*            a     b     c
+		 *      (d) ----------------- (e)   (io data)
+		 *       |      |      |      |     (4K alignment)
+		 *           offset
+		 *           aligned
+		 *
+		 *	a: size_prepended
+		 *	b: size_aligned
+		 *	c: size_appended
+		 *	d: offset_start
+		 *	e: offset_end
+		 */
 
-		r = add_to_log(f->ip, buf, offset, n, L_TYPE_FILE);
-		int execute = write(f->ip, buf, n);
-		if(r < 0)
-			panic("error writing a file");
+		mlfs_debug("%s\n", "+++ start transaction");	
+		
+		while (offset > f->ip->size) {
+			mlfs_debug("sparse write to inum %u, offset %lu, len %lu, file size %lu, force fallocate\n",
+					f->ip->inum, offset, n, f->ip->size);
+			mlfs_file_fallocate(f, f->ip->size, offset - f->ip->size);
+		}
 
-		return r;
+		start_log_tx();
+
+		offset_start = offset;
+		offset_end = offset + n;
+
+		offset_aligned = ALIGN(offset_start, g_block_size_bytes);
+
+		/* when IO size is less than 4KB. */
+		if (offset_end < offset_aligned) { 
+			size_prepended = n;
+			size_aligned = 0;
+			size_appended = 0;
+		} else {
+			// compute portion of prepended unaligned write
+			if (offset_start < offset_aligned) {
+				size_prepended = offset_aligned - offset_start;
+			} else
+				size_prepended = 0;
+
+			mlfs_assert(size_prepended < g_block_size_bytes);
+
+			// compute portion of appended unaligned write
+			size_appended = ALIGN(offset_end, g_block_size_bytes) - offset_end;
+			if (size_appended > 0)
+				size_appended = g_block_size_bytes - size_appended;
+
+			size_aligned = n - size_prepended - size_appended; 
+		}
+
+		// add preprended portion to log
+		if (size_prepended > 0) {
+			ilock(f->ip);
+
+			r = add_to_log(f->ip, buf, offset, size_prepended, L_TYPE_FILE);
+
+			iunlock(f->ip);
+
+			mlfs_assert(r > 0);
+
+			offset += r;
+
+			i += r;
+		}
+
+		// add aligned portion to log
+		while(i < n - size_appended) {
+			mlfs_assert((offset % g_block_size_bytes) == 0);
+			
+			io_size = n - size_appended - i;
+			
+			if(io_size > max_io_size)
+				io_size = max_io_size;
+
+			/* add_to_log updates inode block pointers */
+			ilock(f->ip);
+
+			/* do not copy user buffer to page cache */
+			
+			/* add buffer to log header */
+			if ((r = add_to_log(f->ip, buf + i, offset, io_size, L_TYPE_FILE)) > 0)
+				offset += r;
+
+			iunlock(f->ip);
+
+			if(r < 0)
+				break;
+
+			if(r != io_size)
+				panic("short filewrite");
+
+			i += r;
+		}
+
+		// add appended portion to log
+		if (size_appended > 0) {
+			ilock(f->ip);
+
+			r = add_to_log(f->ip, buf + i, offset, size_appended, L_TYPE_FILE);
+
+			iunlock(f->ip);
+
+			mlfs_assert(r > 0);
+
+			offset += r;
+
+			i += r;
+		}
+	
+
+		/* Optimization: writing inode to log does not require
+		 * for write append or update. Kernfs can see the length in inode
+		 * by looking up offset in a logheader and also mtime in a logheader */
+		// iupdate(f->ip);	
+
+		commit_log_tx();
+
+
+		mlfs_debug("%s\n", "--- end transaction");	
+
+
+		return i == n ? n : -1;
 	}
 
 	panic("filewrite");
@@ -326,7 +439,7 @@ struct inode *mlfs_object_create(char *path, unsigned short type)
 	ilock(parent_inode);
 
 #if 1
-	inode = dir_lookup(parent_inode, path, name, &offset);
+	inode = dir_lookup(parent_inode, name, &offset);
 	if (inode) {
 		mlfs_debug("mlfs_object_create: already found in dir %s\n", path);
 		iunlock(parent_inode);
