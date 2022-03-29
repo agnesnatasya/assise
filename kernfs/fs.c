@@ -2248,12 +2248,12 @@ void signal_callback(struct app_context *msg)
 			mlfs_debug("key built with %s at inode %d\n", name, dir_inum);
 			mlfs_debug("This is the db %p %d %d\n", db_adaptor->db, k, sizeof(k));
 			mlfs_debug("This is the key %s %d\n", k, sizeof(k));
-			char *read = leveldb_get(db_adaptor->db, roptions, k, sizeof(k), &read_len, &err);
+			int read = leveldb_get(db_adaptor->db, roptions, k, sizeof(k), &read_len, &err);
 			mlfs_debug("This is the read result %d %s\n", read_len, err);
 			rpc_send_dir_lookup(msg->sockfd, msg->id, dir_inum, name, read);
 		}
 		// dir get entry request
-		else if (cmd_hdr[4] == "g") {
+		else if (cmd_hdr[4] == 'g') {
 
 		}
 		
