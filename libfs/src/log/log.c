@@ -1346,6 +1346,12 @@ int mlfs_do_rsync()
 
 //////////////////////////////////////////////////////////////////////////
 // Libmlfs signal callback (used to handle signaling between replicas)
+bool is_dir_cmd(char *cmd_hdr) {
+	if (cmd_hdr[0] == 'd' && cmd_hdr[1] == 'i' && cmd_hdr[2] == 'r') {
+		return true;
+	}
+	return false;
+}
 
 #ifdef DISTRIBUTED
 void signal_callback(struct app_context *msg)
@@ -1362,8 +1368,17 @@ void signal_callback(struct app_context *msg)
 
 	// master/slave callbacks
 	// handles 2 message types (digest)
-
-	if (cmd_hdr[0] == 'b') {
+	if (is_dir_cmd(cmd_hdr)) {
+		if (cmd_hdr[4] == "l") {
+			uint32_t seq_n;
+			int dir_inum;
+			char *de_name;
+			int de_inum;
+			sscanf(msg->data, "|%s |%d|%s|%d", cmd_hdr, & &dir_inum, &de_name, &de_inum);
+			update_ip_of_inum(de_inum, de_name, de_inum);
+		}
+	}
+	else if (cmd_hdr[0] == 'b') {
 		uint32_t peer_id;
 		sscanf(msg->data, "|%s |%u", cmd_hdr, &peer_id);
 		g_self_id = peer_id;
