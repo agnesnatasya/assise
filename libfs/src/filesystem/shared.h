@@ -345,13 +345,6 @@ struct dinode {
 
 #define DIRBITMAP_SIZE 1024
 
-struct de_rpc_response {
-	int de_inum;
-	char *de_name;
-	char *path;
-	mlfs_hash_t hash_handle;
-};
-
 #ifdef KLIB_HASH
 KHASH_MAP_INIT_INT64(fcache, struct fcache_block *);
 KHASH_MAP_INIT_STR(de_cache, struct dirent_data *);

@@ -30,29 +30,15 @@ int get_dirent(struct inode *dir_inode, struct mlfs_dirent *buf, offset_t offset
 	return readi(dir_inode, &reply, offset, sizeof(struct mlfs_dirent), NULL); // returns the number of io done
 }
 
-// RPC response update
-void *update_ip_of_inum(int dir_inum, char *de_name, int de_inum) {
-	struct de_rpc_response *response;
-	
-	response = (struct de_rpc_response *)mlfs_zalloc(sizeof(*response));
-	response->de_inum = de_inum;
-	response->de_name = de_name;
-	// response = {.de_inum = de_inum, .de_name = de_name}
-	de_rpc_response_add(strcat(parent_path, de_name), response); // TooDO: change to 1 var
-
-}
-
 // Lookup an inode by name and return offset of its directory entry
 // Note: dir_inode should be locked by calling ilock() before using this function
-// TODO: revert back, path is not needed
-struct inode *dir_lookup(struct inode *dir_inode, char *path, char *name, offset_t *poff)
+struct inode *dir_lookup(struct inode *dir_inode, char *name, offset_t *poff)
 {
 	struct mlfs_dirent de;
 	struct inode *ip = NULL;
 	int n_de_cache = 0;
 	offset_t off;
 	char *k;
-	char parent_path[MAX_PATH];
 
 	//pthread_rwlock_wrlock(g_debug_rwlock);
 
@@ -77,7 +63,6 @@ struct inode *dir_lookup(struct inode *dir_inode, char *path, char *name, offset
 
 	// get_parent_path(path, parent_path, name);
 	
-	// mlfs_debug("This is the path %s\n", path);
 	// mlfs_debug("This is the parent path %s %d\n", parent_path, strlen(parent_path));
 	// if (strlen(parent_path) == 0) {
 	// 	strcat(parent_path, "/");
@@ -85,17 +70,23 @@ struct inode *dir_lookup(struct inode *dir_inode, char *path, char *name, offset
 	// 	mlfs_debug("This is the parent path %s\n", parent_path);
 	// }
 	// to get the de inum and de name
-	rpc_remote_dir_lookup_sync(name, dir_inode->inum, 1);
+	rpc_remote_dir_lookup_sync(name, dir_inode->inum);
 	// rpc_remote_dir_lookup_sync(name, dir_inode->inum, 1);
 
 	// re-search cos it's been added by the RPC call	
-	struct de_rpc_response *response = de_rpc_response_find(dir_inode->inum, name);
-
+	int de_inum = inum_of_de_in_search;
+	char *de_name = name_of_de_in_search;
+	mlfs_debug("This is the result %d %s %s\n", de_inum, de_name, name);
+	
+	// get the inode of this inum
+	ip = icache_find(de_inum); 
+	
 	if(!ip) {
-		ip = iget(response->de_inum);
+		ip = iget(de_inum);
 	}
 
-	if (!namecmp(response->de_name, name)) { // TODO: change jadi de_name
+	if (!namecmp(de_name, name)) { // TODO: change jadi de_name
+		mlfs_debug("%s\n", "Helo i berhasil return");
 		//pthread_rwlock_unlock(g_debug_rwlock);
 		*poff = off;
 		return ip;
@@ -182,14 +173,14 @@ int dir_get_entry64(struct inode *dir_inode, struct linux_dirent64 *buf, offset_
 }
 
 
-struct mlfs_dirent *dir_change_entry(struct inode *dir_inode, char* path, char *oldname, char *newname)
+struct mlfs_dirent *dir_change_entry(struct inode *dir_inode, char *oldname, char *newname)
 {
 	struct inode *ip;
 	struct mlfs_dirent *new_de;
 	offset_t de_off;
 
 	//ilock(dir_inode);
-	ip = dir_lookup(dir_inode, path, oldname, &de_off);
+	ip = dir_lookup(dir_inode, oldname, &de_off);
 	if (!ip) {
 		//iunlock(dir_inode);
 		return NULL;
@@ -214,7 +205,7 @@ struct mlfs_dirent *dir_change_entry(struct inode *dir_inode, char* path, char *
 	return new_de;
 }
 
-struct mlfs_dirent *dir_remove_entry(struct inode *dir_inode, char* path, char *name, struct inode **found)
+struct mlfs_dirent *dir_remove_entry(struct inode *dir_inode, char *name, struct inode **found)
 {
 	struct inode *ip = NULL;
 	struct mlfs_dirent *last = NULL;
@@ -222,7 +213,7 @@ struct mlfs_dirent *dir_remove_entry(struct inode *dir_inode, char* path, char *
 	offset_t de_off;
 
 	//ilock(dir_inode);
-	ip = dir_lookup(dir_inode, path, name, &de_off);
+	ip = dir_lookup(dir_inode, name, &de_off);
 	if (!ip) {
 		//iunlock(dir_inode);
 		*found = NULL;
@@ -345,11 +336,9 @@ static struct inode* namex(char *path, int parent, char *name)
 	char current_path[MAX_PATH];
 	current_path[0] = '\0';
 #endif
-	char* full_path;
 	char namespace_id[DIRSIZ] = {'\0'};
 	uint32_t namespace_inum;
 
-	full_path = path;
 	if (*path == '/') {
 		ip = iget(ROOTINO);
 	}
@@ -370,7 +359,7 @@ static struct inode* namex(char *path, int parent, char *name)
 			iunlock(ip);
 			return ip;
 		}
-		if ((next = dir_lookup(ip, full_path, name, &off)) == NULL) {
+		if ((next = dir_lookup(ip, name, &off)) == NULL) {
 			iunlockput(ip);
 			return NULL;
 		}
@@ -433,18 +422,27 @@ struct inode* nameiparent(char *path, char *name)
 	char parent_path[MAX_PATH];
 
 	get_parent_path(path, parent_path, name);
-
+	mlfs_debug("this is the path, parent path and name %s %s %s inode value is\n", path, parent_path, name);
 	// get the inode from the full path
 	inode = dlookup_find(parent_path); 
+	mlfs_debug("this is the inode of the parent path %s\n", parent_path);
 
-	if (inode && (inode->flags & I_DELETING)) 
+	if (inode) {
+		mlfs_debug("%s\n", "dia pergi sini meh 0");
+		if (inode->flags & I_DELETING) {
+		mlfs_debug("%s\n", "dia pergi sini meh");
 		return NULL;
+		}
+	}
 
+	mlfs_debug("%s\n", "dia pergi sini meh 4");
 	if (!inode) {
+		mlfs_debug("%s\n", "dia pergi sini meh 3");
 		inode = namex(path, 1, name);
 		if (inode)
 			dlookup_alloc_add(inode, parent_path);
 	} else {
+		mlfs_debug("%s\n", "dia pergi sini meh 2");
 		ilock(inode);
 		inode->i_ref++;
 		iunlock(inode);

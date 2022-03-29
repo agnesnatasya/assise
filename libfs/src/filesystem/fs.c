@@ -42,6 +42,9 @@ uint8_t shm_slab_index = 0;
 
 uint8_t initialized = 0;
 
+int inum_of_de_in_search;
+char *name_of_de_in_search;
+
 // statistics
 uint8_t enable_perf_stats;
 
@@ -399,6 +402,10 @@ static void mlfs_rpc_init(void) {
 			 mrs[MR_NVM_LOG].addr,
 			 (atomic_ulong *) &g_fs_log->log_sb->end);
 	}
+
+	inum_of_de_in_search = 0;
+	name_of_de_in_search = NULL;
+
 }
 
 #endif

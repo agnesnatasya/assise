@@ -133,6 +133,9 @@ extern struct lru g_fcache_head;
 extern libfs_stat_t g_perf_stats;
 extern uint8_t enable_perf_stats;
 
+extern int inum_of_de_in_search;
+extern char *name_of_de_in_search;
+
 extern pthread_rwlock_t *icache_rwlock;
 extern pthread_rwlock_t *icreate_rwlock;
 extern pthread_rwlock_t *dcache_rwlock;
@@ -141,35 +144,8 @@ extern pthread_rwlock_t *invalidate_rwlock;
 extern pthread_rwlock_t *g_fcache_rwlock;
 extern pthread_rwlock_t *de_rpc_response_rwlock;
 
-extern struct de_rpc_response *de_rpc_response_hash;
 extern struct inode *inode_hash;
 extern struct dlookup_data *dlookup_hash;
-
-static inline struct de_rpc_response *de_rpc_response_find(char *path)
-{
-	struct de_rpc_response *response;
-
-	pthread_rwlock_rdlock(de_rpc_response_rwlock);
-
-	HASH_FIND(hash_handle, de_rpc_response_hash, &path,
-        		sizeof(uint32_t), response);
-
-	pthread_rwlock_unlock(de_rpc_response_rwlock);
-
-	return response;
-}
-
-static inline struct de_rpc_response *de_rpc_response_add(char *path, struct de_rpc_response *response)
-{
-	pthread_rwlock_wrlock(de_rpc_response_rwlock);
-
-	HASH_ADD(hash_handle, de_rpc_response_hash, path,
-	 		sizeof(uint32_t), response);
-
-	pthread_rwlock_unlock(de_rpc_response_rwlock);
-
-	return response;
-}
 
 static inline struct inode *icache_find(uint32_t inum)
 {
@@ -719,11 +695,11 @@ void iupdate(struct inode*);
 int itrunc(struct inode *inode, offset_t length);
 int bmap(struct inode *ip, struct bmap_request *bmap_req);
 
-struct inode* dir_lookup(struct inode*, char *path, char *name, offset_t *);
+struct inode* dir_lookup(struct inode*, char *name, offset_t *);
 struct mlfs_dirent *dir_add_links(struct inode *dir_inode, uint32_t inum, uint32_t parent_inum);
 struct mlfs_dirent *dir_add_entry(struct inode *dir_inode, char *name, struct inode *inode);
-struct mlfs_dirent *dir_change_entry(struct inode *dir_inode, char *path, char *oldname, char *newname);
-struct mlfs_dirent *dir_remove_entry(struct inode *dir_inode, char *path, char *name, struct inode **found);
+struct mlfs_dirent *dir_change_entry(struct inode *dir_inode, char *oldname, char *newname);
+struct mlfs_dirent *dir_remove_entry(struct inode *dir_inode, char *name, struct inode **found);
 int dir_get_entry(struct inode *dir_inode, struct linux_dirent *buf, offset_t off);
 int dir_get_entry64(struct inode *dir_inode, struct linux_dirent64 *buf, offset_t off);
 int namecmp(const char*, const char*);
