@@ -366,7 +366,7 @@ int rpc_remote_read_sync(char *path, loff_t offset, uint32_t io_size, uint8_t *d
 	return 0;
 }
 
-int rpc_remote_dir_lookup_sync(char *path, int inum, uint8_t *dst) {
+int rpc_remote_dir_lookup_sync(char *name, int inum) {
 	// Contact localhost
 	int sockfd = g_kernfs_peers[0]->sockfd[SOCK_IO];
 	struct app_context *msg;
@@ -374,12 +374,10 @@ int rpc_remote_dir_lookup_sync(char *path, int inum, uint8_t *dst) {
 	
 	msg->id = generate_rpc_seqn(g_rpc_socks[sockfd]);
 	
-	snprintf(msg->data, RPC_MSG_BYTES, "|lookup |%s |%d|%u|%lu", path, inum, (uintptr_t)dst);
-	mlfs_info("trigger sync remote read: path[%s] inum[%d]\n",
-			path, inum);
+	snprintf(msg->data, RPC_MSG_BYTES, "|dir_lookup |%d|%s", inum, name);
+	mlfs_info("trigger sync remote dir lookup: name[%s] inum[%d]\n",
+			name, inum);
 
-	//we still send an async msg, since we want to synchronously wait for the msg response and not
-	//rdma-send completion
 	MP_SEND_MSG_ASYNC(sockfd, buffer_id, 1);
 
 	//spin till we receive a response with the same sequence number
@@ -388,6 +386,24 @@ int rpc_remote_dir_lookup_sync(char *path, int inum, uint8_t *dst) {
 
 	return 0;
 }
+
+void rpc_remote_dir_add_entry_async(int dir_inum, char *name, int inum) {
+	// Contact localhost
+	int sockfd = g_kernfs_peers[0]->sockfd[SOCK_IO];
+	struct app_context *msg;
+	int buffer_id = MP_ACQUIRE_BUFFER(sockfd, &msg);
+	
+	snprintf(msg->data, RPC_MSG_BYTES, "|dir_add_ent |%d|%s | %d", dir_inum, name, inum);
+	mlfs_info("trigger sync remote dir add entry: name[%s] inum[%d] at dir inum: [%d]\n",
+			name, inum, dir_inum);
+
+	//we still send an async msg, since we want to synchronously wait for the msg response and not
+	//rdma-send completion
+	MP_SEND_MSG_ASYNC(sockfd, buffer_id, 1);
+
+	return 0;
+}
+
 
 //send back response for read rpc
 //note: responses are always asynchronous
@@ -722,6 +738,20 @@ int rpc_send_ack(int sockfd, uint32_t seqn)
 	msg->id = seqn; //set immediate to sequence number in order for requester to match it
 
 	mlfs_rpc("peer send: %s\n", msg->data);
+	MP_SEND_MSG_ASYNC(sockfd, buffer_id, 0);
+
+	return 0;
+}
+
+int rpc_send_dir_lookup(int sockfd, uint32_t seqn, int de_inum, char *de_name, int result) {
+	struct app_context *msg;
+
+	int buffer_id = MP_ACQUIRE_BUFFER(sockfd, &msg);
+
+	snprintf(msg->data, RPC_MSG_BYTES, "|dir_lu_resp |%d|%s |%d", de_inum, de_name, result);
+	msg->id = seqn;
+
+	mlfs_rpc("peer send: %s, with id: %d\n", msg->data, seqn);
 	MP_SEND_MSG_ASYNC(sockfd, buffer_id, 0);
 
 	return 0;
