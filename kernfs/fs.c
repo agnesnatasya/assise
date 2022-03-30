@@ -265,6 +265,7 @@ loghdr_meta_t *read_log_header(uint8_t from_dev, addr_t hdr_addr)
 int digest_inode(uint8_t from_dev, uint8_t to_dev, int libfs_id, 
 		uint32_t inum, addr_t blknr)
 {
+	mlfs_debug("%s\n", "This is another inode digestion");
 	struct buffer_head *bh;
 	struct dinode *src_dinode;
 	struct inode *inode;
@@ -362,6 +363,7 @@ int digest_inode(uint8_t from_dev, uint8_t to_dev, int libfs_id,
 	  inode->lstate = LEASE_FREE;
 	}
 #endif
+	mlfs_debug("I am done digesting this thing, %d\n", inode->inum);
 	return 0;
 }
 
@@ -901,17 +903,21 @@ static void digest_each_log_entries(uint8_t from_dev, int libfs_id, loghdr_meta_
 	uint16_t nr_entries;
 	uint64_t tsc_begin;
 	char *k;
-
+		mlfs_debug("%s\n", "wkwkwkw kenapa tambah lama tambah cepet matinya :(\n");
+		mlfs_debug("%d\n", loghdr_meta->loghdr->n);
+		mlfs_debug("%s\n", loghdr_meta->loghdr);
 	nr_entries = loghdr_meta->loghdr->n;
 	loghdr = loghdr_meta->loghdr;
 
 	for (i = 0; i < nr_entries; i++) {
+		mlfs_debug("This is the nth entries %d\n", i);
 		if (enable_perf_stats)
 			g_perf_stats.n_digest++;
 
 		//mlfs_printf("digesting log entry with inum %d peer_id %d\n", loghdr->inode_no[i], libfs_id);
 		// parse log entries on types.
 		switch(loghdr->type[i]) {
+			mlfs_debug("This is the nth entries type %d\n", loghdr->type[i]);
 			case L_TYPE_INODE_CREATE: 
 			// ftruncate is handled by this case.
 			case L_TYPE_INODE_UPDATE: {
@@ -926,7 +932,7 @@ static void digest_each_log_entries(uint8_t from_dev, int libfs_id, loghdr_meta_
 						loghdr->inode_no[i], 
 						loghdr->blocks[i] + loghdr_meta->hdr_blkno);
 				mlfs_assert(!ret);
-
+				mlfs_debug("%s\n", "I am done asserting");
 				if (enable_perf_stats)
 					g_perf_stats.digest_inode_tsc +=
 						asm_rdtscp() - tsc_begin;
@@ -934,16 +940,18 @@ static void digest_each_log_entries(uint8_t from_dev, int libfs_id, loghdr_meta_
 			}
 			// next change
 			case L_TYPE_DIR_ADD: 
-				printf("Received directory addition request %s", loghdr->data[i]);
-				printf("Received directory addition request %s", &loghdr->data[i]);
-				build_meta_key(loghdr->data[i], strlen(loghdr->data[i]),loghdr->inode_no[i]);
-  			leveldb_put(db_adaptor->db, woptions, k, sizeof(k), loghdr->inode_no[i], 4, NULL);
+				mlfs_debug("%s\n", "THis is a directory addition");
+				// mlfs_debug("Received directory addition request %s", loghdr->data[i]);
+				// mlfs_debug("Received directory addition request %s", &loghdr->data[i]);
+				// build_meta_key(loghdr->data[i], strlen(loghdr->data[i]),loghdr->inode_no[i]);
+  			// leveldb_put(db_adaptor->db, woptions, k, sizeof(k), loghdr->inode_no[i], 4, NULL);
 				
 			// next change
 			case L_TYPE_DIR_RENAME: 
 			// next change
 			case L_TYPE_DIR_DEL:
 			case L_TYPE_FILE: {
+				mlfs_debug("%s\n" "Directory addition goes here too");
 				uint8_t dest_dev = g_root_dev;
 				int rand_val;
 				lru_key_t k;
@@ -1544,6 +1552,7 @@ int digest_logs(uint8_t from_dev, int libfs_id, int n_hdrs, addr_t start_blkno,
 		if (enable_perf_stats)	
 			g_perf_stats.replay_time_tsc += asm_rdtscp() - tsc_begin;
 #else
+		mlfs_debug("%s\n", "wkwkwkw kenapa tambah lama tambah cepet matinya :(\n");
 		digest_each_log_entries(from_dev, libfs_id, loghdr_meta);
 #endif
 
