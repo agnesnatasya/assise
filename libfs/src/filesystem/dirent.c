@@ -86,6 +86,9 @@ struct inode *dir_lookup(struct inode *dir_inode, char *name, offset_t *poff)
 			ip = iget(de_inum);
 		}
 
+		// add entry to cache
+		de_cache_add(dir_inode, name, ip, off);
+
 		if (!namecmp(de_name, name)) { // TODO: change jadi de_name
 			mlfs_debug("%s\n", "Helo i berhasil return");
 			//pthread_rwlock_unlock(g_debug_rwlock);
@@ -295,7 +298,7 @@ struct mlfs_dirent *dir_add_entry(struct inode *dir_inode, char *name, struct in
 	// int add_to_log(struct inode *ip, uint8_t *data, offset_t off, uint32_t size, uint8_t ltype)
 	// add_to_log(dir_inode, (uint8_t *) name, off, sizeof(struct mlfs_dirent), L_TYPE_DIR_ADD);
 	add_to_log(dir_inode, (uint8_t *) new_de, off, sizeof(struct mlfs_dirent), L_TYPE_DIR_ADD);
-	
+	rpc_remote_dir_add_entry_async(dir_inode->inum, name, ip->inum);
 	de_cache_add(dir_inode, name, ip, off);
 
 	return new_de;
