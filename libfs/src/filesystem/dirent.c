@@ -78,18 +78,20 @@ struct inode *dir_lookup(struct inode *dir_inode, char *name, offset_t *poff)
 	char *de_name = name_of_de_in_search;
 	mlfs_debug("This is the result %d %s %s\n", de_inum, de_name, name);
 	
-	// get the inode of this inum
-	ip = icache_find(de_inum); 
-	
-	if(!ip) {
-		ip = iget(de_inum);
-	}
+	if (de_inum) {
+		// get the inode of this inum
+		ip = icache_find(de_inum); 
+		
+		if(!ip) {
+			ip = iget(de_inum);
+		}
 
-	if (!namecmp(de_name, name)) { // TODO: change jadi de_name
-		mlfs_debug("%s\n", "Helo i berhasil return");
-		//pthread_rwlock_unlock(g_debug_rwlock);
-		*poff = off;
-		return ip;
+		if (!namecmp(de_name, name)) { // TODO: change jadi de_name
+			mlfs_debug("%s\n", "Helo i berhasil return");
+			//pthread_rwlock_unlock(g_debug_rwlock);
+			*poff = off;
+			return ip;
+		}
 	}
 
 	/*
@@ -291,8 +293,9 @@ struct mlfs_dirent *dir_add_entry(struct inode *dir_inode, char *name, struct in
 	// append to directory file
 	mlfs_debug("adding new dirent to dir inode %u: %s ~ %u at offset %lu\n", dir_inode->inum, name, ip->inum, dir_inode->size);
 	// int add_to_log(struct inode *ip, uint8_t *data, offset_t off, uint32_t size, uint8_t ltype)
-	add_to_log(dir_inode, (uint8_t *) name, off, sizeof(struct mlfs_dirent), L_TYPE_DIR_ADD);
-
+	// add_to_log(dir_inode, (uint8_t *) name, off, sizeof(struct mlfs_dirent), L_TYPE_DIR_ADD);
+	add_to_log(dir_inode, (uint8_t *) new_de, off, sizeof(struct mlfs_dirent), L_TYPE_DIR_ADD);
+	
 	de_cache_add(dir_inode, name, ip, off);
 
 	return new_de;
