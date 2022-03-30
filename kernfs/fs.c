@@ -420,18 +420,9 @@ int digest_file(uint8_t from_dev, uint8_t to_dev, int libfs_id, uint32_t file_in
 	}
 
 	nr_digested_blocks = 0;
-	// cur_offset = offset;
-	// offset_in_block = offset % g_block_size_bytes;
+	cur_offset = offset;
+	offset_in_block = offset % g_block_size_bytes;
 
-	// if (file_inode->has_blob > 0) {
-	// 	// get the fd
-	// 	// fd does not exist, the file has not been created before
-	// 	if (file_inode->fd < 0) {
-	// 		file_inode->fd = creat(dev_path, 0666);
-	// 	}
-
-	// }
-	
 	// case 1. a single block writing: small size (< 4KB) 
 	// or a heading block of unaligned starting offset.
 	if ((length < g_block_size_bytes) || offset_in_block != 0) {
