@@ -943,10 +943,11 @@ static void digest_each_log_entries(uint8_t from_dev, int libfs_id, loghdr_meta_
 			}
 			// next change
 			case L_TYPE_DIR_ADD: 
-				printf("this is the data %s", loghdr->data[i]);
+				printf("Received directory addition request %s", loghdr->data[i]);
+				printf("Received directory addition request %s", &loghdr->data[i]);
 				build_meta_key(loghdr->data[i], strlen(loghdr->data[i]),loghdr->inode_no[i]);
   			leveldb_put(db_adaptor->db, woptions, k, sizeof(k), loghdr->inode_no[i], 4, NULL);
-				break;
+				
 			// next change
 			case L_TYPE_DIR_RENAME: 
 			// next change
@@ -963,7 +964,7 @@ static void digest_each_log_entries(uint8_t from_dev, int libfs_id, loghdr_meta_
 				//dest_dev = g_ssd_dev;
 #endif
 				// int digest_file(uint8_t from_dev, uint8_t to_dev, int libfs_id, uint32_t file_inum, offset_t offset, uint32_t length, addr_t blknr)
-
+				mlfs_debug("%s\n", "You digest till here");
 				ret = digest_file(from_dev, 
 						dest_dev,
 						libfs_id,
@@ -983,13 +984,13 @@ static void digest_each_log_entries(uint8_t from_dev, int libfs_id, loghdr_meta_
 					tsc_begin = asm_rdtscp();
 
 				// Agnes' change
-				/*
+			
 				ret = digest_unlink(from_dev,
 						g_root_dev,
 						libfs_id, 
 						loghdr->inode_no[i]);
 				mlfs_assert(!ret);
-				*/ 
+			 
 				
 				if (enable_perf_stats) 
 					g_perf_stats.digest_inode_tsc +=
@@ -998,14 +999,14 @@ static void digest_each_log_entries(uint8_t from_dev, int libfs_id, loghdr_meta_
 			}
 			case L_TYPE_ALLOC: {
 				// Agnes' change
-				/* 
+				
 				ret = digest_allocate(from_dev,
 						g_root_dev,
 					        libfs_id,
 						loghdr->inode_no[i],
 						loghdr->data[i]);
 				mlfs_assert(!ret);
-				*/ 
+				
 				break;
 			}
 			default: {
