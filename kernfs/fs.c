@@ -941,17 +941,14 @@ static void digest_each_log_entries(uint8_t from_dev, int libfs_id, loghdr_meta_
 			// next change
 			case L_TYPE_DIR_ADD: 
 				mlfs_debug("%s\n", "THis is a directory addition");
-				// mlfs_debug("Received directory addition request %s", loghdr->data[i]);
-				// mlfs_debug("Received directory addition request %s", &loghdr->data[i]);
-				// build_meta_key(loghdr->data[i], strlen(loghdr->data[i]),loghdr->inode_no[i]);
-  			// leveldb_put(db_adaptor->db, woptions, k, sizeof(k), loghdr->inode_no[i], 4, NULL);
+				mlfs_debug("Received directory addition request %d", loghdr->data[i]);
 				
 			// next change
 			case L_TYPE_DIR_RENAME: 
 			// next change
 			case L_TYPE_DIR_DEL:
 			case L_TYPE_FILE: {
-				mlfs_debug("%s\n" "Directory addition goes here too");
+				mlfs_debug("%s\n", "Directory addition goes here too");
 				uint8_t dest_dev = g_root_dev;
 				int rand_val;
 				lru_key_t k;
@@ -2221,7 +2218,6 @@ bool is_dir_cmd(char *cmd_hdr) {
 void signal_callback(struct app_context *msg)
 {
 	char cmd_hdr[12];
-	int dir_inum;
 	// handles 4 message types (bootstrap, log, digest, lease)
 	if(msg->data) {
 		sscanf(msg->data, "|%s |", cmd_hdr);
@@ -2246,18 +2242,34 @@ void signal_callback(struct app_context *msg)
 			char *err = NULL;
 			size_t read_len;
 			k = build_meta_key(name, strlen(name), dir_inum);
-			mlfs_debug("key built with %s at inode %d\n", name, dir_inum);
-			mlfs_debug("This is the db %p %d %d\n", db_adaptor->db, k, sizeof(k));
-			mlfs_debug("This is the key %s %d\n", k, sizeof(k));
-			int read = leveldb_get(db_adaptor->db, roptions, k, sizeof(k), &read_len, &err);
-			mlfs_debug("This is the read result %d %s\n", read_len, err);
-			rpc_send_dir_lookup(msg->sockfd, msg->id, dir_inum, name, read);
+			mlfs_debug("key %s built with %s at inode %d\n", k, name, dir_inum);
+			roptions = leveldb_readoptions_create();
+			char *read = leveldb_get(db_adaptor->db, roptions, k, sizeof(k), &read_len, &err);
+			int inum = atoi(read);
+			mlfs_debug("This is the read result %d %s\n", inum, err);
+			rpc_send_dir_lookup(msg->sockfd, msg->id, dir_inum, name, inum);
+		}
+		else if (cmd_hdr[4] == 'a') {
+			printf("peer recv: %s\n", msg->data);
+			int dir_inum;
+			char name[MAX_PATH];
+			// char inum[1000];
+			int inum;
+			char *err = NULL;
+			sscanf(msg->data, "|%s |%d|%s |%s", cmd_hdr, &dir_inum, name, &inum);
+			char *k;
+			k = build_meta_key(name, strlen(name), dir_inum);
+			mlfs_debug("key %s built with %s at inode %d, value: %s\n", k, name, dir_inum, inum);
+			woptions = leveldb_writeoptions_create();
+			leveldb_put(db_adaptor->db, woptions, "key", 3, "value", 5, &err);
+			mlfs_debug("First try %s %s\n", k, inum);
+			leveldb_put(db_adaptor->db, woptions, k, sizeof(k), (char *) inum, sizeof(int), &err);
+			mlfs_debug("successfully put key %s : value %s in database\n", k, (char *) inum);
 		}
 		// dir get entry request
 		else if (cmd_hdr[4] == 'g') {
 
 		}
-		
 	}
 	// digest request
 	else if (cmd_hdr[0] == 'd') {
