@@ -88,8 +88,6 @@ double digest_sec = 0;
 double run_sec = 0;
 int started = 0;
 struct db_adaptor *db_adaptor;
-leveldb_writeoptions_t *woptions;
-leveldb_readoptions_t *roptions;
 
 #if MLFS_LEASE
 struct sockaddr_un all_cli_addr[g_n_hot_rep];
@@ -265,7 +263,6 @@ loghdr_meta_t *read_log_header(uint8_t from_dev, addr_t hdr_addr)
 int digest_inode(uint8_t from_dev, uint8_t to_dev, int libfs_id, 
 		uint32_t inum, addr_t blknr)
 {
-	mlfs_debug("%s\n", "This is another inode digestion");
 	struct buffer_head *bh;
 	struct dinode *src_dinode;
 	struct inode *inode;
@@ -363,7 +360,6 @@ int digest_inode(uint8_t from_dev, uint8_t to_dev, int libfs_id,
 	  inode->lstate = LEASE_FREE;
 	}
 #endif
-	mlfs_debug("I am done digesting this thing, %d\n", inode->inum);
 	return 0;
 }
 
@@ -374,7 +370,7 @@ void put_to_leveldb(uint32_t parent_dir_inum, char *de_name, uint32_t de_inum) {
 	k = build_meta_key(de_name, strlen(de_name), parent_dir_inum);
 	sprintf(inum,"%d", de_inum);
 	mlfs_debug("key %s built with %s at inode %d, value: %s\n", k, de_name, parent_dir_inum, inum);
-	woptions = leveldb_writeoptions_create();
+	leveldb_writeoptions_t *woptions = leveldb_writeoptions_create();
 	leveldb_put(db_adaptor->db, woptions, k, sizeof(k), inum, 64, &err);
 	mlfs_debug("successfully put key %s : value %s in database\n", k, inum);
 }
@@ -469,7 +465,7 @@ int digest_file(uint8_t from_dev, uint8_t to_dev, int libfs_id, uint32_t file_in
 		};
 		update_slru_list_from_digest(to_dev, k, v);
 #endif
-		mlfs_debug("File data : %s\n", bh_data->b_data);
+		//mlfs_debug("File data : %s\n", bh_data->b_data);
 
 		ret = mlfs_write_opt(bh_data);
 		mlfs_assert(!ret);
@@ -943,45 +939,34 @@ static void digest_each_log_entries(uint8_t from_dev, int libfs_id, loghdr_meta_
 	loghdr = loghdr_meta->loghdr;
 
 	for (i = 0; i < nr_entries; i++) {
-		mlfs_debug("This is the nth entries %d\n", i);
 		if (enable_perf_stats)
 			g_perf_stats.n_digest++;
 
 		//mlfs_printf("digesting log entry with inum %d peer_id %d\n", loghdr->inode_no[i], libfs_id);
 		// parse log entries on types.
 		switch(loghdr->type[i]) {
-			mlfs_debug("This is the nth entries type %d\n", loghdr->type[i]);
 			case L_TYPE_INODE_CREATE: 
 			// ftruncate is handled by this case.
 			case L_TYPE_INODE_UPDATE: {
 				if (enable_perf_stats) 
 					tsc_begin = asm_rdtscp();
 
-				// Agnes' change
-				
 				ret = digest_inode(from_dev,
 						g_root_dev,
 						libfs_id,
 						loghdr->inode_no[i], 
 						loghdr->blocks[i] + loghdr_meta->hdr_blkno);
 				mlfs_assert(!ret);
-				mlfs_debug("%s\n", "I am done asserting");
+
 				if (enable_perf_stats)
 					g_perf_stats.digest_inode_tsc +=
 						asm_rdtscp() - tsc_begin;
 				break;
 			}
-			// next change
-			case L_TYPE_DIR_ADD: 
-				mlfs_debug("%s\n", "THis is a directory addition");
-				mlfs_debug("Received directory addition request %d\n", loghdr->data[i]);
-				
-			// next change
+			case L_TYPE_DIR_ADD: 				
 			case L_TYPE_DIR_RENAME: 
-			// next change
 			case L_TYPE_DIR_DEL:
 			case L_TYPE_FILE: {
-				mlfs_debug("%s\n", "Directory addition goes here too");
 				uint8_t dest_dev = g_root_dev;
 				int rand_val;
 				lru_key_t k;
@@ -992,8 +977,6 @@ static void digest_each_log_entries(uint8_t from_dev, int libfs_id, loghdr_meta_
 				// for NVM bypassing test
 				//dest_dev = g_ssd_dev;
 #endif
-				// int digest_file(uint8_t from_dev, uint8_t to_dev, int libfs_id, uint32_t file_inum, offset_t offset, uint32_t length, addr_t blknr)
-				mlfs_debug("%s\n", "You digest till here");
 				ret = digest_file(from_dev, 
 						dest_dev,
 						libfs_id,
@@ -1014,30 +997,24 @@ static void digest_each_log_entries(uint8_t from_dev, int libfs_id, loghdr_meta_
 				if (enable_perf_stats) 
 					tsc_begin = asm_rdtscp();
 
-				// Agnes' change
-			
 				ret = digest_unlink(from_dev,
 						g_root_dev,
 						libfs_id, 
 						loghdr->inode_no[i]);
 				mlfs_assert(!ret);
 			 
-				
 				if (enable_perf_stats) 
 					g_perf_stats.digest_inode_tsc +=
 						asm_rdtscp() - tsc_begin;
 				break;
 			}
 			case L_TYPE_ALLOC: {
-				// Agnes' change
-				
 				ret = digest_allocate(from_dev,
 						g_root_dev,
 					        libfs_id,
 						loghdr->inode_no[i],
 						loghdr->data[i]);
 				mlfs_assert(!ret);
-				
 				break;
 			}
 			default: {
@@ -1586,7 +1563,6 @@ int digest_logs(uint8_t from_dev, int libfs_id, int n_hdrs, addr_t start_blkno,
 		if (enable_perf_stats)	
 			g_perf_stats.replay_time_tsc += asm_rdtscp() - tsc_begin;
 #else
-		mlfs_debug("%s\n", "wkwkwkw kenapa tambah lama tambah cepet matinya :(\n");
 		digest_each_log_entries(from_dev, libfs_id, loghdr_meta);
 #endif
 
@@ -2108,9 +2084,6 @@ Operations supported:
 
 void dirent_init(void) {
 	db_adaptor = create_db();
-	woptions = leveldb_writeoptions_create();
-	roptions = leveldb_readoptions_create();
-
 }
 
 
@@ -2134,7 +2107,6 @@ void init_fs(void)
 
 	cache_init(g_root_dev);
 	
-
 	locks_init();
 
 	for (i = 0; i < g_n_devices + 1; i++) 
@@ -2280,7 +2252,7 @@ void signal_callback(struct app_context *msg)
 			size_t read_len;
 			k = build_meta_key(name, strlen(name), dir_inum);
 			mlfs_debug("key %s built with %s at inode %d\n", k, name, dir_inum);
-			roptions = leveldb_readoptions_create();
+			leveldb_readoptions_t *roptions = leveldb_readoptions_create();
 			char *read = leveldb_get(db_adaptor->db, roptions, k, sizeof(k), &read_len, &err);
 			mlfs_debug("this is the original retrieved result %s for key %s\n", read, k);
 			int inum = 0;
@@ -2289,26 +2261,6 @@ void signal_callback(struct app_context *msg)
 			}
 			mlfs_debug("This is the read result %d %s\n", inum, err);
 			rpc_send_dir_lookup(msg->sockfd, msg->id, inum, name);
-		}
-		else if (cmd_hdr[4] == 'a') {
-			printf("peer recv: %s\n", msg->data);
-			/*
-			int dir_inum;
-			char name[MAX_PATH];
-			char inum[64]; // assuming 64 bits of integer in max. It's supposed to be an integer but leveldb only accepts character array
-			char *err = NULL;
-			sscanf(msg->data, "|%s |%d|%s |%s", cmd_hdr, &dir_inum, name, &inum);
-			char *k;
-			k = build_meta_key(name, strlen(name), dir_inum);
-			mlfs_debug("key %s built with %s at inode %d, value: %s\n", k, name, dir_inum, inum);
-			woptions = leveldb_writeoptions_create();
-			leveldb_put(db_adaptor->db, woptions, k, sizeof(k), inum, 64, &err);
-			mlfs_debug("successfully put key %s : value %s in database\n", k, inum);
-			*/
-		}
-		// dir get entry request
-		else if (cmd_hdr[4] == 'g') {
-
 		}
 	}
 	// digest request

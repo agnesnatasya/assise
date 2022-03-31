@@ -17,7 +17,6 @@ int namecmp(const char *s, const char *t)
 	return strncmp(s, t, DIRSIZ);
 }
 
-
 int get_dirent(struct inode *dir_inode, struct mlfs_dirent *buf, offset_t offset)
 {
 	struct mlfs_reply reply;
@@ -110,7 +109,12 @@ struct inode *dir_lookup(struct inode *dir_inode, char *name, offset_t *poff)
 		ip = icache_find(de.inum); 
 
 		if(!ip) {
+#if MLFS_NAMESPACES
+			ip = iget(de.inum | (dir_inode->inum & g_namespace_mask));	
+#else
 			ip = iget(de.inum);
+#endif
+
 		}
 
 		// add entry to cache
@@ -279,13 +283,15 @@ struct mlfs_dirent *dir_add_links(struct inode *dir_inode, uint32_t inum, uint32
 
 struct mlfs_dirent *dir_add_entry(struct inode *dir_inode, char *name, struct inode *ip)
 {
-
 	struct mlfs_dirent *new_de;
 	offset_t off;
 
 	new_de = mlfs_zalloc(sizeof(struct mlfs_dirent));
-
+#if MLFS_NAMESPACES
+	new_de->inum = ip->inum & ~g_namespace_mask;
+#else
 	new_de->inum = ip->inum;
+#endif
 	strncpy(new_de->name, name, DIRSIZ);
 	off = dir_inode->size;
 
@@ -424,27 +430,19 @@ struct inode* nameiparent(char *path, char *name)
 	char parent_path[MAX_PATH];
 
 	get_parent_path(path, parent_path, name);
-	mlfs_debug("this is the path, parent path and name %s %s %s inode value is\n", path, parent_path, name);
+	// mlfs_debug("this is the path, parent path and name %s %s %s inode value is\n", path, parent_path, name);
 	// get the inode from the full path
 	inode = dlookup_find(parent_path); 
-	mlfs_debug("this is the inode of the parent path %s\n", parent_path);
+	// mlfs_debug("this is the inode of the parent path %s\n", parent_path);
 
-	if (inode) {
-		mlfs_debug("%s\n", "dia pergi sini meh 0");
-		if (inode->flags & I_DELETING) {
-		mlfs_debug("%s\n", "dia pergi sini meh");
+	if (inode && (inode->flags & I_DELETING))
 		return NULL;
-		}
-	}
 
-	mlfs_debug("%s\n", "dia pergi sini meh 4");
 	if (!inode) {
-		mlfs_debug("%s\n", "dia pergi sini meh 3");
 		inode = namex(path, 1, name);
 		if (inode)
 			dlookup_alloc_add(inode, parent_path);
 	} else {
-		mlfs_debug("%s\n", "dia pergi sini meh 2");
 		ilock(inode);
 		inode->i_ref++;
 		iunlock(inode);

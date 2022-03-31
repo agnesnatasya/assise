@@ -423,16 +423,12 @@ struct inode *mlfs_object_create(char *path, unsigned short type)
 		return inode;
 	}
 
-	mlfs_debug("This is the path and name %s %s\n", path, name);
 	// Find parent_inode. when it returns, name will contain the last 
 	// entry in the path, which is typically a file name.
 	if ((parent_inode = nameiparent(path, name)) == 0) {
-		mlfs_debug("Object creation reaches %s, name is %s\n", "A", name);
 		abort_log_tx();
 		return NULL;
 	}
-
-	mlfs_debug("Object creation reaches %s, name is %s\n", "A1", name);
 
 #if MLFS_LEASE
 	char parent_path[MAX_PATH];
@@ -444,7 +440,6 @@ struct inode *mlfs_object_create(char *path, unsigned short type)
 
 #if 1
 	inode = dir_lookup(parent_inode, name, &offset);
-	mlfs_debug("Object creation reaches %s, name is %s\n", "B", name);
 	if (inode) {
 		mlfs_debug("mlfs_object_create: already found in dir %s\n", path);
 		iunlock(parent_inode);
@@ -460,7 +455,6 @@ struct inode *mlfs_object_create(char *path, unsigned short type)
 		//mark_lease_revocable(parent_inode->inum);
 #endif
 
-		mlfs_debug("Object creation reaches %s, name is %s\n", "C", name);
 		mlfs_get_time(&inode->ctime);
 		inode->atime = inode->mtime = inode->ctime;
 		iupdate(inode);
@@ -481,7 +475,6 @@ struct inode *mlfs_object_create(char *path, unsigned short type)
 		tsc_begin = asm_rdtscp();
 
 	// create new (locked) inode
-	mlfs_debug("Object creation reaches %s, name is %s\n", "C", name);
 	inode = icreate(type);
 
 	if (enable_perf_stats) {

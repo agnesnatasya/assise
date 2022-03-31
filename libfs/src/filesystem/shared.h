@@ -401,7 +401,6 @@ struct inode {
 	// This contains up-to-date dinode information
 	struct dinode *_dinode;
 
-
 	struct super_block **i_sb;
 	uint8_t dinode_flags; //flag to see whether dinode is loaded or not
 	uint32_t inum;      // Inode number

@@ -1332,21 +1332,14 @@ int mlfs_do_rsync()
 #if defined(DISTRIBUTED) && defined(MASTER)
 
 #if !defined(CC_OPT)
-	mlfs_debug("%s\n", "Part 1");
 	make_replication_request_sync(get_next_peer());
-	mlfs_debug("%s\n", "Part 2");
 #endif
 
 #ifdef LOG_OPT
-	mlfs_debug("%s\n", "Part 3");
 	struct logheader_meta *loghdr_meta;
-	mlfs_debug("%s\n", "Part 4");
 	loghdr_meta = get_loghdr_meta();
-	mlfs_debug("%s\n", "Part 5");
 	mlfs_assert(loghdr_meta);
-	mlfs_debug("%s\n", "Part 6");
 	loghdr_meta->is_hdr_locked = true;
-	mlfs_debug("%s\n", "Part 7");
 #endif
 
 #endif
@@ -1380,7 +1373,6 @@ void signal_callback(struct app_context *msg)
 	else {
 		cmd_hdr[0] = 'i';
 	}
-
 
 	// master/slave callbacks
 	// handles 2 message types (digest)

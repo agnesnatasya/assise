@@ -112,13 +112,10 @@ int mlfs_posix_open(char *path, int flags, uint16_t mode)
 #endif
 
 	if (flags & O_CREAT) {
-		mlfs_debug("%s\n", "A");
 		if (flags & O_DIRECTORY)
 			panic("O_DIRECTORY cannot be set with O_CREAT\n");
 
-		mlfs_debug("%s\n", "A1");
 		inode = mlfs_object_create(path, T_FILE);
-		mlfs_debug("%s\n", "A2");
 
 		if (!inode) {
 			return -ENOENT;
@@ -126,10 +123,8 @@ int mlfs_posix_open(char *path, int flags, uint16_t mode)
 
 		mlfs_debug("create file %s - inum %u\n", path, inode->inum);
 	} else {
-		mlfs_posix("%s\n", "B");
 		// opendir API
 		if (flags & O_DIRECTORY) {
-			mlfs_posix("%s\n", "C");
 			// Fall through..
 			// it is OK to return fd for directory. glibc allocates 
 			// DIR structure and fill it with fd and results from stats. 
@@ -137,32 +132,24 @@ int mlfs_posix_open(char *path, int flags, uint16_t mode)
 		}
 
 		if ((inode = namei(path)) == NULL) {
-			mlfs_posix("%s\n", "D");
 			return -ENOENT;
 		}
 
 		if (inode->itype == T_DIR) {
-			mlfs_posix("%s\n", "D");
 			if (!(flags |= (O_RDONLY|O_DIRECTORY))) {
-				mlfs_posix("%s\n", "E");
 				return -EACCES;
 			}
 		}
 	}
-	mlfs_posix("%s\n", "F");
 
 	f = mlfs_file_alloc();
-	mlfs_posix("%s\n", "G");
 
 	if (f == NULL) {
-		mlfs_posix("%s\n", "H");
 		iunlockput(inode);
-		mlfs_posix("%s\n", "I");
 		return -ENOMEM;
 	}
 
 	fd = f->fd;
-	mlfs_posix("%s\n", "J");
 
 	mlfs_debug("open file %s inum %u fd %d\n", path, inode->inum, fd);
 
@@ -174,12 +161,12 @@ int mlfs_posix_open(char *path, int flags, uint16_t mode)
 	} else {
 		f->type = FD_INODE;
 	}
-	mlfs_posix("%s\n", "K");
+
 	f->ip = inode;
 	f->readable = !(flags & O_WRONLY);
 	f->writable = (flags & O_WRONLY) || (flags & O_RDWR);
 	f->off = 0;
-	mlfs_debug("%s\n", "L");
+
 #if MLFS_LEASE
 	//if(f->writable && !O_CREAT) {
 	//	acquire_parent_lease(f->ip, LEASE_WRITE, path);
@@ -777,7 +764,6 @@ int mlfs_posix_fsync(int fd)
 #ifdef DISTRIBUTED
 	mlfs_do_rsync();
 #endif
-	mlfs_debug("%s\n", "rsync is done");
 	return 0;
 }
 
