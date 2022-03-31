@@ -1261,12 +1261,14 @@ void add_to_loghdr(uint8_t type, struct inode *inode, offset_t data,
 			type == L_TYPE_DIR_ADD ||
 			type == L_TYPE_DIR_RENAME ||
 			type == L_TYPE_DIR_DEL ||
-			type == L_TYPE_ALLOC)
+			type == L_TYPE_ALLOC) {
 		// offset in file.
+		mlfs_debug("reached here %d\n", data);
+		// mlfs_debug("reached here %s\n", (offset_t)data);
 		loghdr->data[i] = (offset_t)data;
-	else
+	} else {
 		loghdr->data[i] = 0;
-
+	}
 	loghdr->length[i] = length;
 	loghdr->n++;
 
@@ -1386,13 +1388,11 @@ void signal_callback(struct app_context *msg)
 		if (cmd_hdr[4] == 'l') {
 			mlfs_debug("received rpc with body: %s on sockfd %d %s %d 2, id is %d\n", msg->data, msg->sockfd, cmd_hdr, is_dir_cmd(cmd_hdr), msg->id);
 			uint32_t seq_n;
-			int dir_inum;
 			char de_name[MAX_PATH];
 			int de_inum;
-			sscanf(msg->data, "|%s |%d|%s |%d", cmd_hdr, &dir_inum, de_name, &de_inum);
-			mlfs_debug("This is the de_inum of %s under inode %d: %d\n", de_name, dir_inum, de_inum);
+			sscanf(msg->data, "|%s |%d|%s ", cmd_hdr, &de_inum, de_name);
+			mlfs_debug("This is the de_inum of %s: %d\n", de_name,  de_inum);
 			set_inum_of_de_in_search(de_inum, de_name);
-			mlfs_debug("This is the de_inum of %s under inode %d: %d 2\n", de_name, dir_inum, de_inum);
 		}
 	}
 	else if (cmd_hdr[0] == 'b') {

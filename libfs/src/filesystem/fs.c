@@ -2207,7 +2207,7 @@ int add_to_log(struct inode *ip, uint8_t *data, offset_t off, uint32_t size, uin
 
 	mlfs_assert(ip != NULL);
 
-	mlfs_debug("add to log: inum %u offset %lu size %u\n", ip->inum, off, size);
+	mlfs_debug("add to log: inum %u offset %lu size %u type: %d\n", ip->inum, off, size, ltype);
 
 	loghdr_meta = get_loghdr_meta();
 	mlfs_assert(loghdr_meta);

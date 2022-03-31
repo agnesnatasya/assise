@@ -30,7 +30,7 @@ static char* local_intf = "lo";
 
 static struct peer_id hot_replicas[g_n_hot_rep] = {
 	{ .ip = "127.0.0.1", .role = HOT_REPLICA, .type = KERNFS_PEER},
-//	{ .ip = "13.13.13.7", .role = HOT_REPLICA, .type = KERNFS_PEER},
+//	{ .ip = "10.0.2.2", .role = HOT_REPLICA, .type = KERNFS_PEER},
 };
 
 
@@ -117,6 +117,9 @@ int shutdown_rpc();
 int rpc_connect(struct peer_id *peer, char *listen_port, int type, int poll_cq);
 int rpc_listen(int sockfd, int count);
 //int rpc_add_socket(struct peer_id *peer, int sockfd, int type);
+// int rpc_remote_dir_lookup_sync(char *parent_path, char *name, int inum, uint8_t *dst);
+int rpc_remote_dir_lookup_sync(char *name, int inum);
+void rpc_remote_dir_add_entry_async(int dir_inum, char *name, int inum);
 void rpc_add_socket(int sockfd);
 void rpc_remove_socket(int sockfd);
 int rpc_bootstrap(int sockfd);
@@ -141,6 +144,7 @@ struct rpc_pending_io * rpc_replicate_log_async(peer_meta_t *peer, struct list_h
 struct rpc_pending_io * rpc_replicate_log(peer_meta_t *peer, struct list_head *rdma_entries, uint32_t imm, int do_sync);
 int rpc_send_imm(int sockfd, uint32_t seqn);
 int rpc_send_ack(int sockfd, uint32_t seqn);
+int rpc_send_dir_lookup(int sockfd, uint32_t seqn, int de_inum, char *de_name);
 struct mlfs_reply * rpc_get_reply_object(int sockfd, uint8_t *dst, uint32_t seqn);
 void rpc_await(struct rpc_pending_io *pending);
 

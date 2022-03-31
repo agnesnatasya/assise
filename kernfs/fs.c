@@ -367,6 +367,18 @@ int digest_inode(uint8_t from_dev, uint8_t to_dev, int libfs_id,
 	return 0;
 }
 
+void put_to_leveldb(uint32_t parent_dir_inum, char *de_name, uint32_t de_inum) {
+	char inum[64]; // assuming 64 bits of integer in max. It's supposed to be an integer but leveldb only accepts character array
+	char *err = NULL;
+	char *k;
+	k = build_meta_key(de_name, strlen(de_name), parent_dir_inum);
+	sprintf(inum,"%d", de_inum);
+	mlfs_debug("key %s built with %s at inode %d, value: %s\n", k, de_name, parent_dir_inum, inum);
+	woptions = leveldb_writeoptions_create();
+	leveldb_put(db_adaptor->db, woptions, k, sizeof(k), inum, 64, &err);
+	mlfs_debug("successfully put key %s : value %s in database\n", k, inum);
+}
+
 int digest_file(uint8_t from_dev, uint8_t to_dev, int libfs_id, uint32_t file_inum, 
 		offset_t offset, uint32_t length, addr_t blknr, uint8_t type)
 {
@@ -474,10 +486,13 @@ int digest_file(uint8_t from_dev, uint8_t to_dev, int libfs_id, uint32_t file_in
 			bh->b_offset = offset;
 			bh_submit_read_sync_IO(bh);
 			mlfs_debug("Helo this is the result %s, %d, %d %d\n", de.name, de.inum, de.name == '.', !strcmp(de.name, "."));
+			put_to_leveldb(file_inum, de.name, de.inum);
+
 			if (!strcmp(de.name, ".")) {
 				struct mlfs_dirent *pointer_to_de = (&de);
 				mlfs_debug("%s\n", "This is when adding links ");
 				mlfs_debug("Helo this is the result %s, %d\n", pointer_to_de[1].name, pointer_to_de[1].inum);
+				put_to_leveldb(file_inum, pointer_to_de[1].name, pointer_to_de[1].inum);
 			}
 		}
 
@@ -2260,22 +2275,27 @@ void signal_callback(struct app_context *msg)
 			printf("peer recv: %s\n", msg->data);
 			sscanf(msg->data, "|%s |%d|%s", cmd_hdr, &dir_inum, name);
 			mlfs_debug("key built with %s at inode %d\n", name, dir_inum);
-			// char *k;
-			// char *err = NULL;
-			// size_t read_len;
-			// k = build_meta_key(name, strlen(name), dir_inum);
-			// mlfs_debug("key %s built with %s at inode %d\n", k, name, dir_inum);
-			// roptions = leveldb_readoptions_create();
-			// char *read = leveldb_get(db_adaptor->db, roptions, k, sizeof(k), &read_len, &err);
-			// int inum = atoi(read);
-			// mlfs_debug("This is the read result %d %s\n", inum, err);
-			rpc_send_dir_lookup(msg->sockfd, msg->id, dir_inum, name, 0);
+			char *k;
+			char *err = NULL;
+			size_t read_len;
+			k = build_meta_key(name, strlen(name), dir_inum);
+			mlfs_debug("key %s built with %s at inode %d\n", k, name, dir_inum);
+			roptions = leveldb_readoptions_create();
+			char *read = leveldb_get(db_adaptor->db, roptions, k, sizeof(k), &read_len, &err);
+			mlfs_debug("this is the original retrieved result %s for key %s\n", read, k);
+			int inum = 0;
+			if (read) {
+				sscanf(read, "%d", &inum);
+			}
+			mlfs_debug("This is the read result %d %s\n", inum, err);
+			rpc_send_dir_lookup(msg->sockfd, msg->id, inum, name);
 		}
 		else if (cmd_hdr[4] == 'a') {
 			printf("peer recv: %s\n", msg->data);
+			/*
 			int dir_inum;
 			char name[MAX_PATH];
-			char inum[64]; // assuming 64 bits of integer in max
+			char inum[64]; // assuming 64 bits of integer in max. It's supposed to be an integer but leveldb only accepts character array
 			char *err = NULL;
 			sscanf(msg->data, "|%s |%d|%s |%s", cmd_hdr, &dir_inum, name, &inum);
 			char *k;
@@ -2284,6 +2304,7 @@ void signal_callback(struct app_context *msg)
 			woptions = leveldb_writeoptions_create();
 			leveldb_put(db_adaptor->db, woptions, k, sizeof(k), inum, 64, &err);
 			mlfs_debug("successfully put key %s : value %s in database\n", k, inum);
+			*/
 		}
 		// dir get entry request
 		else if (cmd_hdr[4] == 'g') {

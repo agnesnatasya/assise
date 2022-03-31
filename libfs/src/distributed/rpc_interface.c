@@ -743,12 +743,12 @@ int rpc_send_ack(int sockfd, uint32_t seqn)
 	return 0;
 }
 
-int rpc_send_dir_lookup(int sockfd, uint32_t seqn, int de_inum, char *de_name, int result) {
+int rpc_send_dir_lookup(int sockfd, uint32_t seqn, int de_inum, char *de_name) {
 	struct app_context *msg;
 
 	int buffer_id = MP_ACQUIRE_BUFFER(sockfd, &msg);
 
-	snprintf(msg->data, RPC_MSG_BYTES, "|dir_lu_resp |%d|%s |%d", de_inum, de_name, result);
+	snprintf(msg->data, RPC_MSG_BYTES, "|dir_lu_resp |%d|%s", de_inum, de_name);
 	msg->id = seqn;
 
 	mlfs_rpc("peer send: %s, with id: %d\n", msg->data, seqn);
