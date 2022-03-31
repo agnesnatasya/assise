@@ -473,21 +473,21 @@ int digest_file(uint8_t from_dev, uint8_t to_dev, int libfs_id, uint32_t file_in
 		bh_release(bh_data);
 
 		struct mlfs_dirent de;
-		mlfs_debug("This is the type %d, while %d, and the result is %d\n", type, L_TYPE_DIR_ADD, type == L_TYPE_DIR_ADD);
+		// mlfs_debug("This is the type %d, while %d, and the result is %d\n", type, L_TYPE_DIR_ADD, type == L_TYPE_DIR_ADD);
 		if (type == L_TYPE_DIR_ADD) {
-			mlfs_debug("I AM %s\n", "A DIRECTORY");
+			// mlfs_debug("I AM %s\n", "A DIRECTORY");
 			bh = bh_get_sync_IO(to_dev, map.m_pblk, BH_NO_DATA_ALLOC);
 			bh->b_size = sizeof(struct mlfs_dirent) * 2;
 			bh->b_data = (uint8_t *) (&de);
 			bh->b_offset = offset;
 			bh_submit_read_sync_IO(bh);
-			mlfs_debug("Helo this is the result %s, %d, %d %d\n", de.name, de.inum, de.name == '.', !strcmp(de.name, "."));
+			mlfs_debug("This is the key %s, value %d\n", de.name, de.inum);
 			put_to_leveldb(file_inum, de.name, de.inum);
 
 			if (!strcmp(de.name, ".")) {
 				struct mlfs_dirent *pointer_to_de = (&de);
-				mlfs_debug("%s\n", "This is when adding links ");
-				mlfs_debug("Helo this is the result %s, %d\n", pointer_to_de[1].name, pointer_to_de[1].inum);
+				// mlfs_debug("%s\n", "This is when adding links ");
+				mlfs_debug("This is the key %s, value %d\n", pointer_to_de[1].name, pointer_to_de[1].inum);
 				put_to_leveldb(file_inum, pointer_to_de[1].name, pointer_to_de[1].inum);
 			}
 		}
@@ -932,9 +932,6 @@ static void digest_each_log_entries(uint8_t from_dev, int libfs_id, loghdr_meta_
 	uint16_t nr_entries;
 	uint64_t tsc_begin;
 	char *k;
-		mlfs_debug("%s\n", "wkwkwkw kenapa tambah lama tambah cepet matinya :(\n");
-		mlfs_debug("%d\n", loghdr_meta->loghdr->n);
-		mlfs_debug("%s\n", loghdr_meta->loghdr);
 	nr_entries = loghdr_meta->loghdr->n;
 	loghdr = loghdr_meta->loghdr;
 
@@ -2244,7 +2241,7 @@ void signal_callback(struct app_context *msg)
 			char name[MAX_PATH];
 			int dir_inum;
 			
-			printf("peer recv: %s\n", msg->data);
+			// printf("peer recv: %s\n", msg->data);
 			sscanf(msg->data, "|%s |%d|%s", cmd_hdr, &dir_inum, name);
 			mlfs_debug("key built with %s at inode %d\n", name, dir_inum);
 			char *k;
@@ -2254,7 +2251,7 @@ void signal_callback(struct app_context *msg)
 			mlfs_debug("key %s built with %s at inode %d\n", k, name, dir_inum);
 			leveldb_readoptions_t *roptions = leveldb_readoptions_create();
 			char *read = leveldb_get(db_adaptor->db, roptions, k, sizeof(k), &read_len, &err);
-			mlfs_debug("this is the original retrieved result %s for key %s\n", read, k);
+			// mlfs_debug("this is the original retrieved result %s for key %s\n", read, k);
 			int inum = 0;
 			if (read) {
 				sscanf(read, "%d", &inum);
