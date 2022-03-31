@@ -2275,18 +2275,14 @@ void signal_callback(struct app_context *msg)
 			printf("peer recv: %s\n", msg->data);
 			int dir_inum;
 			char name[MAX_PATH];
-			char inum[1000];
-			// int inum;
+			char inum[64]; // assuming 64 bits of integer in max
 			char *err = NULL;
 			sscanf(msg->data, "|%s |%d|%s |%s", cmd_hdr, &dir_inum, name, &inum);
 			char *k;
 			k = build_meta_key(name, strlen(name), dir_inum);
 			mlfs_debug("key %s built with %s at inode %d, value: %s\n", k, name, dir_inum, inum);
 			woptions = leveldb_writeoptions_create();
-			// leveldb_put(db_adaptor->db, woptions, "key", 3, "value", 5, &err);
-			// mlfs_debug("First try %s %s\n", k, inum);
-			char* p = &inum[0]; 
-			leveldb_put(db_adaptor->db, woptions, k, sizeof(k), p, 1000, &err);
+			leveldb_put(db_adaptor->db, woptions, k, sizeof(k), inum, 64, &err);
 			mlfs_debug("successfully put key %s : value %s in database\n", k, inum);
 		}
 		// dir get entry request
