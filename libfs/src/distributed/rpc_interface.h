@@ -29,8 +29,9 @@ static char* local_intf = "lo";
 // Replica IP Mappings --------------------------------------------
 
 static struct peer_id hot_replicas[g_n_hot_rep] = {
-	{ .ip = "127.0.0.1", .role = HOT_REPLICA, .type = KERNFS_PEER},
-//	{ .ip = "10.0.2.2", .role = HOT_REPLICA, .type = KERNFS_PEER},
+//	{ .ip = "127.0.0.1", .role = HOT_REPLICA, .type = KERNFS_PEER},
+	{ .ip = "10.0.2.1", .role = HOT_REPLICA, .type = KERNFS_PEER},
+	{ .ip = "10.0.2.2", .role = HOT_REPLICA, .type = KERNFS_PEER},
 };
 
 
@@ -119,7 +120,7 @@ int rpc_listen(int sockfd, int count);
 //int rpc_add_socket(struct peer_id *peer, int sockfd, int type);
 // int rpc_remote_dir_lookup_sync(char *parent_path, char *name, int inum, uint8_t *dst);
 int rpc_remote_dir_lookup_sync(char *name, int inum);
-void rpc_remote_dir_add_entry_async(int dir_inum, char *name, int inum);
+// void rpc_remote_dir_add_entry_async(int dir_inum, char *name, int inum);
 void rpc_add_socket(int sockfd);
 void rpc_remove_socket(int sockfd);
 int rpc_bootstrap(int sockfd);

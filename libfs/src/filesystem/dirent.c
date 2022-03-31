@@ -134,7 +134,7 @@ int dir_get_entry(struct inode *dir_inode, struct linux_dirent *buf, offset_t of
 {
 	struct mlfs_dirent de;
 	int ret;
-/*
+
 	ret = get_dirent(dir_inode, &de, off);
 
 #if MLFS_NAMESPACES
@@ -147,11 +147,7 @@ int dir_get_entry(struct inode *dir_inode, struct linux_dirent *buf, offset_t of
 	buf->d_reclen = sizeof(struct linux_dirent);
 	strncpy(buf->d_name, de.name, DIRSIZ);
 
-	return sizeof(struct mlfs_dirent);
-*/
-
-
-	
+	return sizeof(struct mlfs_dirent);	
 }
 
 
