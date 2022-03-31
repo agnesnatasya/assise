@@ -20,7 +20,7 @@
 #define MAX_CONNECTIONS 1000 // max # of RDMA connections per peer
 #define MAX_MR 10 // max # of memory regions per connection
 #define MAX_PENDING 500 // max # of pending app responses per connection
-#define MAX_BUFFER 8 // max # of msg buffers per connection
+#define MAX_BUFFER 20 // max # of msg buffers per connection
 #define MAX_SEND_QUEUE_SIZE 1024 // depth of rdma send queue
 #define MAX_RECV_QUEUE_SIZE 1024 // depth of rdma recv queue
 
