@@ -368,7 +368,7 @@ int digest_inode(uint8_t from_dev, uint8_t to_dev, int libfs_id,
 }
 
 int digest_file(uint8_t from_dev, uint8_t to_dev, int libfs_id, uint32_t file_inum, 
-		offset_t offset, uint32_t length, addr_t blknr)
+		offset_t offset, uint32_t length, addr_t blknr, uint8_t type)
 {
 	int ret;
 	uint32_t offset_in_block = 0;
@@ -457,12 +457,30 @@ int digest_file(uint8_t from_dev, uint8_t to_dev, int libfs_id, uint32_t file_in
 		};
 		update_slru_list_from_digest(to_dev, k, v);
 #endif
-		//mlfs_debug("File data : %s\n", bh_data->b_data);
+		mlfs_debug("File data : %s\n", bh_data->b_data);
 
 		ret = mlfs_write_opt(bh_data);
 		mlfs_assert(!ret);
 
 		bh_release(bh_data);
+
+		struct mlfs_dirent de;
+		mlfs_debug("This is the type %d, while %d, and the result is %d\n", type, L_TYPE_DIR_ADD, type == L_TYPE_DIR_ADD);
+		if (type == L_TYPE_DIR_ADD) {
+			mlfs_debug("I AM %s\n", "A DIRECTORY");
+			bh = bh_get_sync_IO(to_dev, map.m_pblk, BH_NO_DATA_ALLOC);
+			bh->b_size = sizeof(struct mlfs_dirent) * 2;
+			bh->b_data = (uint8_t *) (&de);
+			bh->b_offset = offset;
+			bh_submit_read_sync_IO(bh);
+			mlfs_debug("Helo this is the result %s, %d, %d %d\n", de.name, de.inum, de.name == '.', !strcmp(de.name, "."));
+			if (!strcmp(de.name, ".")) {
+				struct mlfs_dirent *pointer_to_de = (&de);
+				mlfs_debug("%s\n", "This is when adding links ");
+				mlfs_debug("Helo this is the result %s, %d\n", pointer_to_de[1].name, pointer_to_de[1].inum);
+			}
+		}
+
 
 		mlfs_debug("inum %d, offset %lu len %u (dev %d:%lu) -> (dev %d:%lu)\n", 
 				file_inode->inum, cur_offset, _len, 
@@ -941,7 +959,7 @@ static void digest_each_log_entries(uint8_t from_dev, int libfs_id, loghdr_meta_
 			// next change
 			case L_TYPE_DIR_ADD: 
 				mlfs_debug("%s\n", "THis is a directory addition");
-				mlfs_debug("Received directory addition request %d", loghdr->data[i]);
+				mlfs_debug("Received directory addition request %d\n", loghdr->data[i]);
 				
 			// next change
 			case L_TYPE_DIR_RENAME: 
@@ -967,7 +985,9 @@ static void digest_each_log_entries(uint8_t from_dev, int libfs_id, loghdr_meta_
 						loghdr->inode_no[i], 
 						loghdr->data[i], 
 						loghdr->length[i],
-						loghdr->blocks[i] + loghdr_meta->hdr_blkno);
+						loghdr->blocks[i] + loghdr_meta->hdr_blkno,
+						loghdr->type[i]
+						);
 				mlfs_assert(!ret);
 
 				if (enable_perf_stats)
@@ -1300,10 +1320,11 @@ static void file_digest_worker(void *arg)
 	list_for_each_entry_safe(f_iovec, iovec_tmp, 
 			&f_item->iovec_list, list) {
 #ifndef EXPERIMENTAL
-		digest_file(_arg->from_dev, _arg->to_dev, _arg->libfs_id,
-				f_item->key.inum, f_iovec->offset, 
-				f_iovec->length, f_iovec->blknr);
-		mlfs_free(f_iovec);
+		// TODO: Revert
+		// digest_file(_arg->from_dev, _arg->to_dev, _arg->libfs_id,
+		// 		f_item->key.inum, f_iovec->offset, 
+		// 		f_iovec->length, f_iovec->blknr);
+		// mlfs_free(f_iovec);
 #else
 		digest_file_iovec(_arg->from_dev, _arg->to_dev, _arg->libfs_id, 
 				f_item->key.inum, f_iovec);
@@ -1386,10 +1407,11 @@ static void digest_log_from_replay_list(uint8_t from_dev, int libfs_id, struct r
 						&f_item->iovec_list, list) {
 
 #ifndef EXPERIMENTAL
-					digest_file(from_dev, dest_dev, libfs_id,
-							f_item->key.inum, f_iovec->offset, 
-							f_iovec->length, f_iovec->blknr);
-					mlfs_free(f_iovec);
+					// TODO: REVERT
+					// digest_file(from_dev, dest_dev, libfs_id,
+					// 		f_item->key.inum, f_iovec->offset, 
+					// 		f_iovec->length, f_iovec->blknr);
+					// mlfs_free(f_iovec);
 #else
 					digest_file_iovec(from_dev, dest_dev, libfs_id,
 							f_item->key.inum, f_iovec);
@@ -2238,33 +2260,34 @@ void signal_callback(struct app_context *msg)
 			printf("peer recv: %s\n", msg->data);
 			sscanf(msg->data, "|%s |%d|%s", cmd_hdr, &dir_inum, name);
 			mlfs_debug("key built with %s at inode %d\n", name, dir_inum);
-			char *k;
-			char *err = NULL;
-			size_t read_len;
-			k = build_meta_key(name, strlen(name), dir_inum);
-			mlfs_debug("key %s built with %s at inode %d\n", k, name, dir_inum);
-			roptions = leveldb_readoptions_create();
-			char *read = leveldb_get(db_adaptor->db, roptions, k, sizeof(k), &read_len, &err);
-			int inum = atoi(read);
-			mlfs_debug("This is the read result %d %s\n", inum, err);
-			rpc_send_dir_lookup(msg->sockfd, msg->id, dir_inum, name, inum);
+			// char *k;
+			// char *err = NULL;
+			// size_t read_len;
+			// k = build_meta_key(name, strlen(name), dir_inum);
+			// mlfs_debug("key %s built with %s at inode %d\n", k, name, dir_inum);
+			// roptions = leveldb_readoptions_create();
+			// char *read = leveldb_get(db_adaptor->db, roptions, k, sizeof(k), &read_len, &err);
+			// int inum = atoi(read);
+			// mlfs_debug("This is the read result %d %s\n", inum, err);
+			rpc_send_dir_lookup(msg->sockfd, msg->id, dir_inum, name, 0);
 		}
 		else if (cmd_hdr[4] == 'a') {
 			printf("peer recv: %s\n", msg->data);
 			int dir_inum;
 			char name[MAX_PATH];
-			// char inum[1000];
-			int inum;
+			char inum[1000];
+			// int inum;
 			char *err = NULL;
 			sscanf(msg->data, "|%s |%d|%s |%s", cmd_hdr, &dir_inum, name, &inum);
 			char *k;
 			k = build_meta_key(name, strlen(name), dir_inum);
 			mlfs_debug("key %s built with %s at inode %d, value: %s\n", k, name, dir_inum, inum);
 			woptions = leveldb_writeoptions_create();
-			leveldb_put(db_adaptor->db, woptions, "key", 3, "value", 5, &err);
-			mlfs_debug("First try %s %s\n", k, inum);
-			leveldb_put(db_adaptor->db, woptions, k, sizeof(k), (char *) inum, sizeof(int), &err);
-			mlfs_debug("successfully put key %s : value %s in database\n", k, (char *) inum);
+			// leveldb_put(db_adaptor->db, woptions, "key", 3, "value", 5, &err);
+			// mlfs_debug("First try %s %s\n", k, inum);
+			char* p = &inum[0]; 
+			leveldb_put(db_adaptor->db, woptions, k, sizeof(k), p, 1000, &err);
+			mlfs_debug("successfully put key %s : value %s in database\n", k, inum);
 		}
 		// dir get entry request
 		else if (cmd_hdr[4] == 'g') {
