@@ -22,6 +22,7 @@
 
 #include "db_adaptor.h"
 #include "leveldb/c.h"
+#include "murmur3.h"
 
 #ifdef DISTRIBUTED
 #include "distributed/rpc_interface.h"
@@ -96,23 +97,10 @@ int addr_idx = 0;
 
 DECLARE_BITMAP(g_log_bitmap, g_n_max_libfs);
 
-static unsigned int
-murmur_hash(const void *path, size_t path_len, unsigned int hashmask)
-{
-    size_t i;
-    unsigned int h = 5381;
-
-    for (i=0; i<path_len; ++i)
-    {
-        h += (h << 5) + ((const unsigned char *)path)[i];
-    }
-
-    return h & hashmask;
-}
-
 // TODO: Must change the name to an absolute path, cannot only the last one 
 static char * build_meta_key(char *name, int len, int dir_inum) {
-	uint hash_id = murmur_hash(name, len, 123);
+	uint hash_id;
+	MurmurHash3_x64_128(name, len, 123, &hash_id);
 	char *meta_key = malloc(1000);
 	mlfs_debug("this is the hash %d\n", hash_id);
 	snprintf(meta_key, 1000, "%d%d", dir_inum, hash_id);
@@ -474,23 +462,27 @@ int digest_file(uint8_t from_dev, uint8_t to_dev, int libfs_id, uint32_t file_in
 
 		struct mlfs_dirent de;
 		// mlfs_debug("This is the type %d, while %d, and the result is %d\n", type, L_TYPE_DIR_ADD, type == L_TYPE_DIR_ADD);
-		if (type == L_TYPE_DIR_ADD) {
+		clock_t begin_adding_to_level_db = clock();
+	
+		// if (type == L_TYPE_DIR_ADD) {
 			// mlfs_debug("I AM %s\n", "A DIRECTORY");
-			bh = bh_get_sync_IO(to_dev, map.m_pblk, BH_NO_DATA_ALLOC);
-			bh->b_size = sizeof(struct mlfs_dirent) * 2;
-			bh->b_data = (uint8_t *) (&de);
-			bh->b_offset = offset;
-			bh_submit_read_sync_IO(bh);
-			mlfs_debug("This is the key %s, value %d\n", de.name, de.inum);
-			put_to_leveldb(file_inum, de.name, de.inum);
+		bh = bh_get_sync_IO(to_dev, map.m_pblk, BH_NO_DATA_ALLOC);
+		bh->b_size = sizeof(struct mlfs_dirent) * 2;
+		bh->b_data = (uint8_t *) (&de);
+		bh->b_offset = offset;
+		bh_submit_read_sync_IO(bh);
+		mlfs_debug("This is the key %s, value %d\n", de.name, de.inum);
+		put_to_leveldb(file_inum, de.name, de.inum);
 
-			if (!strcmp(de.name, ".")) {
-				struct mlfs_dirent *pointer_to_de = (&de);
-				// mlfs_debug("%s\n", "This is when adding links ");
-				mlfs_debug("This is the key %s, value %d\n", pointer_to_de[1].name, pointer_to_de[1].inum);
-				put_to_leveldb(file_inum, pointer_to_de[1].name, pointer_to_de[1].inum);
-			}
+		if (!strcmp(de.name, ".") && type == L_TYPE_DIR_ADD) {
+			struct mlfs_dirent *pointer_to_de = (&de);
+			// mlfs_debug("%s\n", "This is when adding links ");
+			mlfs_debug("This is the key %s, value %d\n", pointer_to_de[1].name, pointer_to_de[1].inum);
+			put_to_leveldb(file_inum, pointer_to_de[1].name, pointer_to_de[1].inum);
 		}
+		// }
+	clock_t end_adding_to_level_db = clock();
+	printf("Time elapsed for adding to level db: %.3f\n", (double)(end_adding_to_level_db - begin_adding_to_level_db)  * 1000.0 / CLOCKS_PER_SEC);
 
 
 		mlfs_debug("inum %d, offset %lu len %u (dev %d:%lu) -> (dev %d:%lu)\n", 
@@ -2098,8 +2090,10 @@ void init_fs(void)
 	debug_init();
 
 	init_device_lru_list();
-
+	clock_t begin_dirent_init = clock();
 	dirent_init();
+	clock_t end_dirent_init = clock();
+	printf("Time elapsed for dirent init: %.3f\n", (double)(end_dirent_init - begin_dirent_init)  * 1000.0 / CLOCKS_PER_SEC);
 	//shared_memory_init();
 
 	cache_init(g_root_dev);
