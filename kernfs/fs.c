@@ -97,15 +97,16 @@ int addr_idx = 0;
 
 DECLARE_BITMAP(g_log_bitmap, g_n_max_libfs);
 
-// TODO: Must change the name to an absolute path, cannot only the last one 
-static char * build_meta_key(char *name, int len, int dir_inum) {
-	uint hash_id;
-	MurmurHash3_x64_128(name, len, 123, &hash_id);
-	char *meta_key = malloc(1000);
-	mlfs_debug("this is the hash %d\n", hash_id);
-	snprintf(meta_key, 1000, "%d%d", dir_inum, hash_id);
-	mlfs_debug("This is the key final moment %s\n", meta_key);
-	return meta_key;
+
+static void build_meta_key(char *name, int len, int dir_inum, char* result) {
+	uint32_t hash[4]; 	
+	MurmurHash3_x64_128(name, len, 123, hash);
+	// char meta_key[40];
+	// mlfs_debug("this is the hash %s\n", hash_id);
+	snprintf(result, 41, "%08x%08x%08x%08x%08x", dir_inum, hash[0], hash[1], hash[2], hash[3]);
+	// snprintf(meta_key, 1000, "%d%lu", dir_inum, hash_id);
+	// mlfs_debug("This is t he key %s for name %s, len %d at dir %d\n", meta_key, name, len, dir_inum);
+	// return strcat(dir_inum, hash_id);
 }
 
 // LevelDB Operations
@@ -354,8 +355,8 @@ int digest_inode(uint8_t from_dev, uint8_t to_dev, int libfs_id,
 void put_to_leveldb(uint32_t parent_dir_inum, char *de_name, uint32_t de_inum) {
 	char inum[64]; // assuming 64 bits of integer in max. It's supposed to be an integer but leveldb only accepts character array
 	char *err = NULL;
-	char *k;
-	k = build_meta_key(de_name, strlen(de_name), parent_dir_inum);
+	char k[41];
+	build_meta_key(de_name, strlen(de_name), parent_dir_inum, k);
 	sprintf(inum,"%d", de_inum);
 	mlfs_debug("key %s built with %s at inode %d, value: %s\n", k, de_name, parent_dir_inum, inum);
 	leveldb_writeoptions_t *woptions = leveldb_writeoptions_create();
@@ -366,6 +367,11 @@ void put_to_leveldb(uint32_t parent_dir_inum, char *de_name, uint32_t de_inum) {
 int digest_file(uint8_t from_dev, uint8_t to_dev, int libfs_id, uint32_t file_inum, 
 		offset_t offset, uint32_t length, addr_t blknr, uint8_t type)
 {
+	clock_t end_dir_add_entry;
+	clock_t start_dir_add_entry;
+	if (type == L_TYPE_DIR_ADD) {
+		start_dir_add_entry = clock();
+	}
 	int ret;
 	uint32_t offset_in_block = 0;
 	struct inode *file_inode;
@@ -464,7 +470,7 @@ int digest_file(uint8_t from_dev, uint8_t to_dev, int libfs_id, uint32_t file_in
 		// mlfs_debug("This is the type %d, while %d, and the result is %d\n", type, L_TYPE_DIR_ADD, type == L_TYPE_DIR_ADD);
 		clock_t begin_adding_to_level_db = clock();
 	
-		// if (type == L_TYPE_DIR_ADD) {
+		if (type == L_TYPE_DIR_ADD) {
 			// mlfs_debug("I AM %s\n", "A DIRECTORY");
 		bh = bh_get_sync_IO(to_dev, map.m_pblk, BH_NO_DATA_ALLOC);
 		bh->b_size = sizeof(struct mlfs_dirent) * 2;
@@ -474,15 +480,15 @@ int digest_file(uint8_t from_dev, uint8_t to_dev, int libfs_id, uint32_t file_in
 		mlfs_debug("This is the key %s, value %d\n", de.name, de.inum);
 		put_to_leveldb(file_inum, de.name, de.inum);
 
-		if (!strcmp(de.name, ".") && type == L_TYPE_DIR_ADD) {
+		if (!strcmp(de.name, ".")) {
 			struct mlfs_dirent *pointer_to_de = (&de);
 			// mlfs_debug("%s\n", "This is when adding links ");
 			mlfs_debug("This is the key %s, value %d\n", pointer_to_de[1].name, pointer_to_de[1].inum);
 			put_to_leveldb(file_inum, pointer_to_de[1].name, pointer_to_de[1].inum);
 		}
-		// }
+		}
 	clock_t end_adding_to_level_db = clock();
-	printf("Time elapsed for adding to level db: %.3f\n", (double)(end_adding_to_level_db - begin_adding_to_level_db)  * 1000.0 / CLOCKS_PER_SEC);
+	mlfs_debug("Time elapsed for adding to level db: %.3f\n", (double)(end_adding_to_level_db - begin_adding_to_level_db)  * 1000.0 / CLOCKS_PER_SEC);
 
 
 		mlfs_debug("inum %d, offset %lu len %u (dev %d:%lu) -> (dev %d:%lu)\n", 
@@ -585,6 +591,10 @@ int digest_file(uint8_t from_dev, uint8_t to_dev, int libfs_id, uint32_t file_in
 	if (file_inode->size < offset + length)
 		file_inode->size = offset + length;
 
+	if (type == L_TYPE_DIR_ADD) {
+		end_dir_add_entry = clock();
+		printf("Time elapsed for dir add entry digest at dir %u: %.3f\n", file_inode->inum, (double)(end_dir_add_entry - start_dir_add_entry)  * 1000.0 / CLOCKS_PER_SEC);
+	}
 	return 0;
 }
 
@@ -2238,10 +2248,10 @@ void signal_callback(struct app_context *msg)
 			// printf("peer recv: %s\n", msg->data);
 			sscanf(msg->data, "|%s |%d|%s", cmd_hdr, &dir_inum, name);
 			mlfs_debug("key built with %s at inode %d\n", name, dir_inum);
-			char *k;
+			char k[41];
 			char *err = NULL;
 			size_t read_len;
-			k = build_meta_key(name, strlen(name), dir_inum);
+			build_meta_key(name, strlen(name), dir_inum, k);
 			mlfs_debug("key %s built with %s at inode %d\n", k, name, dir_inum);
 			leveldb_readoptions_t *roptions = leveldb_readoptions_create();
 			char *read = leveldb_get(db_adaptor->db, roptions, k, sizeof(k), &read_len, &err);

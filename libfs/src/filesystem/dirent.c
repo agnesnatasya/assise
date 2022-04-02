@@ -31,7 +31,7 @@ int get_dirent(struct inode *dir_inode, struct mlfs_dirent *buf, offset_t offset
 
 // Lookup an inode by name and return offset of its directory entry
 // Note: dir_inode should be locked by calling ilock() before using this function
-struct inode *dir_lookup(struct inode *dir_inode, char *name, offset_t *poff)
+struct inode *dir_lookup(struct inode * dir_inode, char *name, offset_t *poff)
 {
 	struct mlfs_dirent de;
 	struct inode *ip = NULL;
@@ -48,7 +48,7 @@ struct inode *dir_lookup(struct inode *dir_inode, char *name, offset_t *poff)
 	if (ip) {
 		//pthread_rwlock_unlock(g_debug_rwlock);
 		end_dir_lookup = clock();
-		printf("Time elapsed for dir lookup: %.3f\n", (double)(end_dir_lookup - start_dir_lookup)  * 1000.0 / CLOCKS_PER_SEC);
+		printf("Time elapsed for dir lookup NO SEARCH for %s at dir %u: %.3f\n", name, dir_inode->inum, (double)(end_dir_lookup - start_dir_lookup)  * 1000.0 / CLOCKS_PER_SEC);
 		return ip;
 	}
 
@@ -59,7 +59,7 @@ struct inode *dir_lookup(struct inode *dir_inode, char *name, offset_t *poff)
 	if (n_de_cache * sizeof(struct mlfs_dirent) == dir_inode->size) {
 		mlfs_debug("%s\n", "not found w/ full de cache - skipping search");
 		end_dir_lookup = clock();
-		printf("Time elapsed for dir lookup: %.3f\n", (double)(end_dir_lookup - start_dir_lookup)  * 1000.0 / CLOCKS_PER_SEC);
+		printf("Time elapsed for dir lookup NO SEARCH for %s at dir %u: %.3f\n", name, dir_inode->inum, (double)(end_dir_lookup - start_dir_lookup)  * 1000.0 / CLOCKS_PER_SEC);
 		//pthread_rwlock_unlock(g_debug_rwlock);
 		return NULL;
 	}
@@ -97,7 +97,7 @@ struct inode *dir_lookup(struct inode *dir_inode, char *name, offset_t *poff)
 		if (!namecmp(de_name, name)) { // TODO: change jadi de_name
 			mlfs_debug("%s\n", "Helo i berhasil return");
 			end_dir_lookup = clock();
-			printf("Time elapsed for dir lookup: %.3f\n", (double)(end_dir_lookup - start_dir_lookup)  * 1000.0 / CLOCKS_PER_SEC);
+			printf("Time elapsed for dir lookup YES SEARCH for %s at dir %u: %.3f\n", name, dir_inode->inum, (double)(end_dir_lookup - start_dir_lookup)  * 1000.0 / CLOCKS_PER_SEC);
 			//pthread_rwlock_unlock(g_debug_rwlock);
 			*poff = off;
 			return ip;
@@ -138,7 +138,7 @@ struct inode *dir_lookup(struct inode *dir_inode, char *name, offset_t *poff)
 	//pthread_rwlock_unlock(g_debug_rwlock);
 	mlfs_debug("dir_lookup: did not find %s in dir %u\n", name, dir_inode->inum);
 	end_dir_lookup = clock();
-	printf("Time elapsed for dir lookup: %.3f\n", (double)(end_dir_lookup - start_dir_lookup)  * 1000.0 / CLOCKS_PER_SEC);
+	printf("Time elapsed for dir lookup YES SEARCH for %s at dir %u: %.3f\n", name, dir_inode->inum, (double)(end_dir_lookup - start_dir_lookup)  * 1000.0 / CLOCKS_PER_SEC);
 	return NULL;
 }
 
