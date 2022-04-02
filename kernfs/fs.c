@@ -413,8 +413,13 @@ int digest_inode(uint8_t from_dev, uint8_t to_dev, int libfs_id,
 }
 
 int digest_file(uint8_t from_dev, uint8_t to_dev, int libfs_id, uint32_t file_inum, 
-		offset_t offset, uint32_t length, addr_t blknr)
+		offset_t offset, uint32_t length, addr_t blknr, uint8_t type)
 {
+	clock_t end_dir_add_entry;
+	clock_t start_dir_add_entry;
+	if (type == L_TYPE_DIR_ADD) {
+		start_dir_add_entry = clock();
+	}
 	int ret;
 	uint32_t offset_in_block = 0;
 	struct inode *file_inode;
@@ -607,6 +612,11 @@ int digest_file(uint8_t from_dev, uint8_t to_dev, int libfs_id, uint32_t file_in
 
 	if (file_inode->size < offset + length)
 		file_inode->size = offset + length;
+
+	if (type == L_TYPE_DIR_ADD) {
+		end_dir_add_entry = clock();
+		printf("Time elapsed for dir add entry digest at dir %u: %.3f\n", file_inode->inum, (double)(end_dir_add_entry - start_dir_add_entry)  * 1000.0 / CLOCKS_PER_SEC);
+	}
 
 	return 0;
 }
@@ -995,7 +1005,9 @@ static void digest_each_log_entries(uint8_t from_dev, int libfs_id, loghdr_meta_
 						loghdr->inode_no[i], 
 						loghdr->data[i], 
 						loghdr->length[i],
-						loghdr->blocks[i] + loghdr_meta->hdr_blkno);
+						loghdr->blocks[i] + loghdr_meta->hdr_blkno,
+						loghdr->type[i]
+						);
 				mlfs_assert(!ret);
 
 				if (enable_perf_stats)
@@ -1322,10 +1334,12 @@ static void file_digest_worker(void *arg)
 	list_for_each_entry_safe(f_iovec, iovec_tmp, 
 			&f_item->iovec_list, list) {
 #ifndef EXPERIMENTAL
+/*
 		digest_file(_arg->from_dev, _arg->to_dev, _arg->libfs_id,
 				f_item->key.inum, f_iovec->offset, 
 				f_iovec->length, f_iovec->blknr);
 		mlfs_free(f_iovec);
+		*/
 #else
 		digest_file_iovec(_arg->from_dev, _arg->to_dev, _arg->libfs_id, 
 				f_item->key.inum, f_iovec);
@@ -1408,10 +1422,12 @@ static void digest_log_from_replay_list(uint8_t from_dev, int libfs_id, struct r
 						&f_item->iovec_list, list) {
 
 #ifndef EXPERIMENTAL
+/*
 					digest_file(from_dev, dest_dev, libfs_id,
 							f_item->key.inum, f_iovec->offset, 
 							f_iovec->length, f_iovec->blknr);
 					mlfs_free(f_iovec);
+					*/
 #else
 					digest_file_iovec(from_dev, dest_dev, libfs_id,
 							f_item->key.inum, f_iovec);
@@ -2297,7 +2313,7 @@ void signal_callback(struct app_context *msg)
 		uint16_t seqn;
 		decode_rsync_metadata(msg->id, &seqn, &n_log_blk, &steps, &node_id, &rotated, &ack);
 
-		mlfs_rpc("peer recv: rsync from libfs-%d | n_log_blk: %lu | steps: %u | rotated: %s | ack: %s\n",
+		printf("peer recv: rsync from libfs-%d | n_log_blk: %lu | steps: %u | rotated: %s | ack: %s\n",
 				node_id, n_log_blk, steps, rotated?"yes":"no", ack?"yes":"no");	
 
 		//FIXME: this currently updates nr of loghdrs incorrectly (assumes it's just 1)
