@@ -53,6 +53,9 @@ time_stat.o: time_stat.c
 create_files: create_files.cc
 	$(CXX) -std=c++11 -g -Ofast -o $@ $^  -I$(INCLUDES) -L$(LIBFS_DIR) -lmlfs $(CFLAGS) -L$(RDMA_DIR) $(LDFLAGS)
 
+create_files_small: create_files_small.cc
+	$(CXX) -std=c++11 -g -Ofast -o $@ $^  -I$(INCLUDES) -L$(LIBFS_DIR) -lmlfs $(CFLAGS) -L$(RDMA_DIR) $(LDFLAGS)
+
 iobench: iobench.cc time_stat.o thread.cc
 	$(CXX) -std=c++11 -g -Ofast -o $@ $^  -I$(INCLUDES) -L$(LIBFS_DIR) -lmlfs $(CFLAGS) -L$(RDMA_DIR) $(LDFLAGS)
 
