@@ -288,8 +288,9 @@ struct mlfs_dirent *dir_add_links(struct inode *dir_inode, uint32_t inum, uint32
 	strcpy(link_de[1].name, "..");
 
 	// add "." and ".." links in a single log entry
-	add_to_log(dir_inode, ".",  inum, sizeof(struct mlfs_dirent), L_TYPE_LDB_ADD);
-	add_to_log(dir_inode, "..",  inum, sizeof(struct mlfs_dirent), L_TYPE_LDB_ADD);
+	// add_to_loghdr(L_TYPE_ALLOC, f->ip, len, sizeof(offset_t), NULL, 0);
+	add_to_loghdr(L_TYPE_LDB_ADD, dir_inode, ".", inum, NULL, 0);
+	add_to_loghdr(L_TYPE_LDB_ADD, dir_inode, "..", inum, NULL, 0);
 	add_to_log(dir_inode, (uint8_t *) link_de, 0, sizeof(struct mlfs_dirent) * 2, L_TYPE_DIR_ADD);
 
 	return link_de;
@@ -312,7 +313,9 @@ struct mlfs_dirent *dir_add_entry(struct inode *dir_inode, char *name, struct in
 	// append to directory file
 	mlfs_debug("adding new dirent to dir inode %u: %s ~ %u at offset %lu\n", dir_inode->inum, name, ip->inum, dir_inode->size);
 	// int add_to_log(struct inode *ip, uint8_t *data, offset_t off, uint32_t size, uint8_t ltype)
-	add_to_log(dir_inode, name,  new_de->inum, sizeof(struct mlfs_dirent), L_TYPE_LDB_ADD);
+	add_to_loghdr(L_TYPE_LDB_ADD, dir_inode, name,  new_de->inum, NULL, 0);
+	add_to_loghdr(L_TYPE_LDB_ADD, dir_inode, name,  new_de->inum, NULL, 0);
+	// add_to_log(dir_inode, name,  new_de->inum, sizeof(struct mlfs_dirent), L_TYPE_LDB_ADD);
 	add_to_log(dir_inode, (uint8_t *) new_de, off, sizeof(struct mlfs_dirent), L_TYPE_DIR_ADD);
 	// rpc_remote_dir_add_entry_async(dir_inode->inum, name, ip->inum);
 	de_cache_add(dir_inode, name, ip, off);
