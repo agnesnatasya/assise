@@ -970,7 +970,7 @@ static void digest_each_log_entries(uint8_t from_dev, int libfs_id, loghdr_meta_
 				put_to_leveldb(parent_inum, data, length);
 				end_dir_add_entry = clock();
 				mlfs_debug("Time elapsed for dir ldb add at dir %u: %.3f\n", parent_inum, (double)(end_dir_add_entry - start_dir_add_entry)  * 1000.0 / CLOCKS_PER_SEC);
-				return;
+				break;
 			}
 			case L_TYPE_DIR_ADD: 				
 			case L_TYPE_DIR_RENAME: 
