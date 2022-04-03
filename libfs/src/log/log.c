@@ -1266,10 +1266,11 @@ void add_to_loghdr(uint8_t type, struct inode *inode, void *data,
 			type == L_TYPE_DIR_DEL ||
 			type == L_TYPE_ALLOC) {
 		// offset in file.
-		mlfs_debug("reached here %d\n", data);
 		// mlfs_debug("reached here %s\n", (offset_t)data);
 		loghdr->data[i] = (offset_t)data;
 	} else if (type == L_TYPE_LDB_ADD) {
+		//mlfs_debug("reached here %d\n", data);
+		//mlfs_debug("reached here %d\n", (char *)data);
 		loghdr->data[i] = data;
 	} else {
 		loghdr->data[i] = 0;

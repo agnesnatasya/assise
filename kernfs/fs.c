@@ -965,9 +965,12 @@ static void digest_each_log_entries(uint8_t from_dev, int libfs_id, loghdr_meta_
 				start_dir_add_entry = clock();
 				uint32_t parent_inum = loghdr->inode_no[i];
 				uint32_t length = loghdr->length[i];
-				char *data = (char *) (loghdr->data[i]);
-				mlfs_debug("This is the key %s, value %d\n", data, length);
-				put_to_leveldb(parent_inum, data, length);
+			        struct mlfs_dirent *new_de = mlfs_zalloc(sizeof(struct mlfs_dirent));
+				memcpy(&new_de, loghdr->data[i], sizeof(struct mlfs_dirent));
+
+				// char *data = (char *) (loghdr->data[i]);
+				mlfs_debug("This is the key %s, value %d\n", new_de->name, new_de->inum);
+				put_to_leveldb(parent_inum, new_de->name, new_de->inum);
 				end_dir_add_entry = clock();
 				mlfs_debug("Time elapsed for dir ldb add at dir %u: %.3f\n", parent_inum, (double)(end_dir_add_entry - start_dir_add_entry)  * 1000.0 / CLOCKS_PER_SEC);
 				break;
