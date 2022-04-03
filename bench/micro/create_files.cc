@@ -33,10 +33,11 @@ void show_usage(const char *prog)
 
 int main(int argc, char *argv[])
 {
+    clock_t begin = clock();
 
-    const char *test_dir_prefix = "/mlfs/";
+    const char *test_dir_prefix = "/mlfs/p/";
 
-    char *test_file_name = "testfile";
+    char *test_file_name = "testfile15";
 
     std::string test_file;
 
@@ -46,22 +47,53 @@ int main(int argc, char *argv[])
         show_usage("create_files");
 
     int count = atoi(argv[1]);
+               clock_t begin_m = clock();
+    int is_c = atoi(argv[2]);
+    
+    if (!is_c) {
+        mkdir("/mlfs", 0777);
+        int ret = mkdir(test_dir_prefix, 0777);
+        for(int i=1; i<count+1; i++) {
+            clock_t begin_s = clock();
 
+            test_file.assign(test_dir_prefix);
+
+            test_file += std::string(test_file_name) + std::to_string(5) + "-" + std::to_string(i);
+
+            fd = open(test_file.c_str(), O_RDWR,
+                    S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
+            
+            if (fd < 0) {
+                    err(1, "open");
+            }
+
+        }
+        clock_t end = clock();
+        double time_spent = (double)(end - begin)  * 1000.0 / CLOCKS_PER_SEC;
+        printf("Time elapsed: %.3f\n", time_spent);
+        return 0;
+
+    }
+    mkdir("/mlfs", 0777);
+    int ret = mkdir(test_dir_prefix, 0777);
+    clock_t end_m = clock();
     for(int i=1; i<count+1; i++) {
+	    clock_t begin_s = clock();
 
 	    test_file.assign(test_dir_prefix);
 
-	    test_file += std::string(test_file_name) + std::to_string(0) + "-" + std::to_string(i);
-
-        printf("Creating file %s\n", test_file.c_str());
+	    test_file += std::string(test_file_name) + std::to_string(5) + "-" + std::to_string(i);
+ try {
     	fd = open(test_file.c_str(), O_RDWR | O_CREAT,
 				S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
-		
-        if (fd < 0) {
-                err(1, "open");
-        }
-
+ } catch (...) {
+ }	 
+//        if (fd < 0) {
+  //              err(1, "open");
+    //    }
     }
-
+    clock_t end = clock();
+    double time_spent = (double)(end - begin)  * 1000.0 / CLOCKS_PER_SEC;
+    printf("Time elapsed: %.3f\n", time_spent);
     return 0;
 }
