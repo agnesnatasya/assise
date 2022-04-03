@@ -71,7 +71,7 @@ extern volatile struct fs_log *g_fs_log;
 extern volatile struct log_superblock *g_log_sb;
 
 void init_log();
-void add_to_loghdr(uint8_t type, struct inode *inode, offset_t data, 
+void add_to_loghdr(uint8_t type, struct inode *inode, void *data, 
 		uint32_t length, void *extra, uint16_t extra_len);
 void start_log_tx(void);
 void abort_log_tx(void);
