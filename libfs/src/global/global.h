@@ -20,7 +20,7 @@ void mlfs_setup(void);
 #define g_block_size_shift	12UL
 // 2 works for microbenchmark
 // 6 is generally too big. but Redis AOF mode requires at least 6.
-#define g_max_blocks_per_operation 4
+#define g_max_blocks_per_operation 8
 #define g_hdd_block_size_bytes 4194304UL
 #define g_hdd_block_size_shift 22UL
 
@@ -94,7 +94,7 @@ void mlfs_setup(void);
 
 // # of replicas in cluster
 // Note: Only hot replicas are implemented (other replica types are not used)
-#define g_n_hot_rep 1	// Hot replica
+#define g_n_hot_rep 2 	// Hot replica
 #define g_n_hot_bkp 0	// Hot backup (reserve)
 #define g_n_cold_bkp 0	// Cold backup (reserve)
 #define g_n_ext_rep 0	// External Replicas (not colocated)
