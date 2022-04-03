@@ -938,7 +938,8 @@ static uint32_t compute_log_blocks(struct logheader_meta *loghdr_meta)
 			case L_TYPE_UNLINK:
 			case L_TYPE_INODE_CREATE:
 			case L_TYPE_INODE_UPDATE:
-			case L_TYPE_ALLOC: {
+			case L_TYPE_ALLOC: 
+			case L_TYPE_LDB_ADD: {
 				nr_log_blocks++;
 				break;
 			} 
@@ -1007,6 +1008,8 @@ static void persist_log_blocks(struct logheader_meta *loghdr_meta)
 				break;
 			}
 			case L_TYPE_ALLOC:
+				break;
+			case L_TYPE_LDB_ADD:
 				break;
 			default: {
 				panic("unsupported log type\n");
@@ -1291,7 +1294,7 @@ void add_to_loghdr(uint8_t type, struct inode *inode, offset_t data,
 				type == L_TYPE_DIR_ADD? "DIR_ADD" : type == L_TYPE_DIR_RENAME? "DIR_RENAME" :
 				type == L_TYPE_DIR_DEL? "DIR_DEL" : type == L_TYPE_INODE_CREATE? "INODE_CREATE" :
 				type == L_TYPE_INODE_UPDATE? "INODE_UDPATE" : type == L_TYPE_UNLINK? "UNLINK" :
-				type == L_TYPE_ALLOC? "ALLOC" : "UNKNOWN"), inode->inum);
+				type == L_TYPE_ALLOC? "ALLOC" : type == L_TYPE_LDB_ADD? "LDB" :"UNKNOWN"), inode->inum);
 
 	/*
 		 if (type != L_TYPE_FILE)

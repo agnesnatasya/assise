@@ -367,17 +367,6 @@ void put_to_leveldb(uint32_t parent_dir_inum, char *de_name, uint32_t de_inum) {
 int digest_file(uint8_t from_dev, uint8_t to_dev, int libfs_id, uint32_t file_inum, 
 		void* offset, uint32_t length, addr_t blknr, uint8_t type)
 {
-	clock_t end_dir_add_entry;
-	clock_t start_dir_add_entry;
-	if (type == L_TYPE_LDB_ADD) {
-		start_dir_add_entry = clock();
-		char *data = (char *) (offset);
-		mlfs_debug("This is the key %s, value %d\n", data, length);
-		put_to_leveldb(file_inum, data, length);
-		end_dir_add_entry = clock();
-		mlfs_debug("Time elapsed for dir ldb add at dir %u: %.3f\n", file_inum, (double)(end_dir_add_entry - start_dir_add_entry)  * 1000.0 / CLOCKS_PER_SEC);
-		return;
-	}
 	int ret;
 	uint32_t offset_in_block = 0;
 	struct inode *file_inode;
@@ -969,6 +958,19 @@ static void digest_each_log_entries(uint8_t from_dev, int libfs_id, loghdr_meta_
 					g_perf_stats.digest_inode_tsc +=
 						asm_rdtscp() - tsc_begin;
 				break;
+			}
+			case L_TYPE_LDB_ADD: {
+				clock_t end_dir_add_entry;
+				clock_t start_dir_add_entry;
+				start_dir_add_entry = clock();
+				uint32_t parent_inum = loghdr->inode_no[i];
+				uint32_t length = loghdr->length[i];
+				char *data = (char *) (loghdr->data[i]);
+				mlfs_debug("This is the key %s, value %d\n", data, length);
+				put_to_leveldb(parent_inum, data, length);
+				end_dir_add_entry = clock();
+				mlfs_debug("Time elapsed for dir ldb add at dir %u: %.3f\n", parent_inum, (double)(end_dir_add_entry - start_dir_add_entry)  * 1000.0 / CLOCKS_PER_SEC);
+				return;
 			}
 			case L_TYPE_DIR_ADD: 				
 			case L_TYPE_DIR_RENAME: 
