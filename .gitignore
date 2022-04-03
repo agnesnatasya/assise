@@ -31,3 +31,9 @@ libfs/bin/*
 libfs/lib/dpdk-16.07/*
 libfs/lib/nvml/*
 #libfs/lib/spdk/*
+
+linux*
+*lib*
+assise.sh
+*result/
+*testdb*
