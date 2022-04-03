@@ -176,7 +176,7 @@ int mlfs_mark_inode_dirty(int id, struct inode *inode);
 int persist_dirty_dirent_block(struct inode *inode);
 int persist_dirty_object(void);
 int digest_file(uint8_t from_dev, uint8_t to_dev, int libfs_id, uint32_t file_inum, 
-		offset_t offset, uint32_t length, addr_t blknr, uint8_t type);
+		void *offset, uint32_t length, addr_t blknr, uint8_t type);
 int reserve_log(struct peer_id *peer);
 void show_storage_stats(void);
 

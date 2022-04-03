@@ -48,7 +48,7 @@ struct inode *dir_lookup(struct inode * dir_inode, char *name, offset_t *poff)
 	if (ip) {
 		//pthread_rwlock_unlock(g_debug_rwlock);
 		end_dir_lookup = clock();
-		printf("Time elapsed for dir lookup NO SEARCH for %s at dir %u: %.3f\n", name, dir_inode->inum, (double)(end_dir_lookup - start_dir_lookup)  * 1000.0 / CLOCKS_PER_SEC);
+		// printf("Time elapsed for dir lookup NO SEARCH for %s at dir %u: %.3f\n", name, dir_inode->inum, (double)(end_dir_lookup - start_dir_lookup)  * 1000.0 / CLOCKS_PER_SEC);
 		return ip;
 	}
 
@@ -57,13 +57,15 @@ struct inode *dir_lookup(struct inode * dir_inode, char *name, offset_t *poff)
 	// might need to change this in the future
 	n_de_cache = dir_inode->n_de_cache_entry + 2;
 	if (n_de_cache * sizeof(struct mlfs_dirent) == dir_inode->size) {
+		printf("NO SEARCH %d %d\n", n_de_cache * sizeof(struct mlfs_dirent), dir_inode->size);
 		mlfs_debug("%s\n", "not found w/ full de cache - skipping search");
 		end_dir_lookup = clock();
-		printf("Time elapsed for dir lookup NO SEARCH for %s at dir %u: %.3f\n", name, dir_inode->inum, (double)(end_dir_lookup - start_dir_lookup)  * 1000.0 / CLOCKS_PER_SEC);
+		// printf("Time elapsed for dir lookup NO SEARCH for %s at dir %u: %.3f\n", name, dir_inode->inum, (double)(end_dir_lookup - start_dir_lookup)  * 1000.0 / CLOCKS_PER_SEC);
 		//pthread_rwlock_unlock(g_debug_rwlock);
 		return NULL;
 	}
 
+	printf("SEARCH %d %d\n", n_de_cache * sizeof(struct mlfs_dirent), dir_inode->size);
 	mlfs_debug("%s\n", "dir_lookup: contacting KernFS");
 
 	// get_parent_path(path, parent_path, name);
@@ -81,7 +83,7 @@ struct inode *dir_lookup(struct inode * dir_inode, char *name, offset_t *poff)
 	// re-search cos it's been added by the RPC call	
 	int de_inum = inum_of_de_in_search;
 	char *de_name = name_of_de_in_search;
-	mlfs_debug("This is the result %d %s %s\n", de_inum, de_name, name);
+	printf("This is the result %d %s %s\n", de_inum, de_name, name);
 	
 	if (de_inum) {
 		// get the inode of this inum
@@ -97,7 +99,7 @@ struct inode *dir_lookup(struct inode * dir_inode, char *name, offset_t *poff)
 		if (!namecmp(de_name, name)) { // TODO: change jadi de_name
 			mlfs_debug("%s\n", "Helo i berhasil return");
 			end_dir_lookup = clock();
-			printf("Time elapsed for dir lookup YES SEARCH for %s at dir %u: %.3f\n", name, dir_inode->inum, (double)(end_dir_lookup - start_dir_lookup)  * 1000.0 / CLOCKS_PER_SEC);
+			// printf("Time elapsed for dir lookup YES SEARCH for %s at dir %u: %.3f\n", name, dir_inode->inum, (double)(end_dir_lookup - start_dir_lookup)  * 1000.0 / CLOCKS_PER_SEC);
 			//pthread_rwlock_unlock(g_debug_rwlock);
 			*poff = off;
 			return ip;
@@ -138,7 +140,7 @@ struct inode *dir_lookup(struct inode * dir_inode, char *name, offset_t *poff)
 	//pthread_rwlock_unlock(g_debug_rwlock);
 	mlfs_debug("dir_lookup: did not find %s in dir %u\n", name, dir_inode->inum);
 	end_dir_lookup = clock();
-	printf("Time elapsed for dir lookup YES SEARCH for %s at dir %u: %.3f\n", name, dir_inode->inum, (double)(end_dir_lookup - start_dir_lookup)  * 1000.0 / CLOCKS_PER_SEC);
+	// printf("Time elapsed for dir lookup YES SEARCH for %s at dir %u: %.3f\n", name, dir_inode->inum, (double)(end_dir_lookup - start_dir_lookup)  * 1000.0 / CLOCKS_PER_SEC);
 	return NULL;
 }
 
@@ -286,6 +288,8 @@ struct mlfs_dirent *dir_add_links(struct inode *dir_inode, uint32_t inum, uint32
 	strcpy(link_de[1].name, "..");
 
 	// add "." and ".." links in a single log entry
+	add_to_log(dir_inode, ".",  inum, sizeof(struct mlfs_dirent), L_TYPE_LDB_ADD);
+	add_to_log(dir_inode, "..",  inum, sizeof(struct mlfs_dirent), L_TYPE_LDB_ADD);
 	add_to_log(dir_inode, (uint8_t *) link_de, 0, sizeof(struct mlfs_dirent) * 2, L_TYPE_DIR_ADD);
 
 	return link_de;
@@ -308,7 +312,7 @@ struct mlfs_dirent *dir_add_entry(struct inode *dir_inode, char *name, struct in
 	// append to directory file
 	mlfs_debug("adding new dirent to dir inode %u: %s ~ %u at offset %lu\n", dir_inode->inum, name, ip->inum, dir_inode->size);
 	// int add_to_log(struct inode *ip, uint8_t *data, offset_t off, uint32_t size, uint8_t ltype)
-	// add_to_log(dir_inode, (uint8_t *) name, off, sizeof(struct mlfs_dirent), L_TYPE_DIR_ADD);
+	add_to_log(dir_inode, name,  new_de->inum, sizeof(struct mlfs_dirent), L_TYPE_LDB_ADD);
 	add_to_log(dir_inode, (uint8_t *) new_de, off, sizeof(struct mlfs_dirent), L_TYPE_DIR_ADD);
 	// rpc_remote_dir_add_entry_async(dir_inode->inum, name, ip->inum);
 	de_cache_add(dir_inode, name, ip, off);
@@ -440,7 +444,7 @@ struct inode* nameiparent(char *path, char *name)
 	char parent_path[MAX_PATH];
 
 	get_parent_path(path, parent_path, name);
-	// mlfs_debug("this is the path, parent path and name %s %s %s inode value is\n", path, parent_path, name);
+	mlfs_debug("this is the path, parent path and name %s %s %s inode value is\n", path, parent_path, name);
 	// get the inode from the full path
 	inode = dlookup_find(parent_path); 
 	// mlfs_debug("this is the inode of the parent path %s\n", parent_path);

@@ -106,6 +106,7 @@ struct disk_superblock {
 #define L_TYPE_FILE            6
 #define L_TYPE_UNLINK          7
 #define L_TYPE_ALLOC	       8
+#define L_TYPE_LDB_ADD	       9
 
 #define NTYPE_I 1
 #define NTYPE_D 2
@@ -151,7 +152,7 @@ typedef struct logheader {
 	// file: offset.
 	// directory: inode number of dirent.
 	// inode, unlink: no used.
-	offset_t data[g_max_blocks_per_operation];
+	void* data[g_max_blocks_per_operation];
 	uint32_t length[g_max_blocks_per_operation];
 	// relative block number of on-disk log data blocks (from header). 
 	addr_t blocks[g_max_blocks_per_operation];

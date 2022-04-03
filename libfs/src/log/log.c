@@ -707,6 +707,7 @@ static int persist_log_file(struct logheader_meta *loghdr_meta,
 	mlfs_assert(inode);
 
 	size = loghdr_meta->io_vec[n_iovec].size;
+	offset_t data_casted = (offset_t *)(loghdr->data[idx]);
 
 	// Handling small write (< 4KB).
 	if (size < g_block_size_bytes) {
@@ -730,9 +731,8 @@ static int persist_log_file(struct logheader_meta *loghdr_meta,
 		*/
 
 		uint32_t offset_in_block;
-
-		key = (loghdr->data[idx] >> g_block_size_shift);
-		offset_in_block = (loghdr->data[idx] % g_block_size_bytes);
+		key = (data_casted >> g_block_size_shift);
+		offset_in_block = (data_casted % g_block_size_bytes);
 
 		if (enable_perf_stats)
 			start_tsc = asm_rdtscp();
@@ -845,11 +845,11 @@ static int persist_log_file(struct logheader_meta *loghdr_meta,
 		//if (enable_perf_stats)
 		//	start_tsc_tmp = asm_rdtscp();
 
-		cur_offset = loghdr->data[idx];
+		cur_offset = data_casted;
 
 		/* logheader of multi-block is always 4K aligned.
 		 * It is guaranteed by mlfs_file_write() */
-		mlfs_assert((loghdr->data[idx] % g_block_size_bytes) == 0);
+		mlfs_assert(data_casted % g_block_size_bytes == 0);
 		mlfs_assert((size % g_block_size_bytes) == 0);
 
 		nr_logblocks = size >> g_block_size_shift; 
