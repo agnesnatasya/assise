@@ -1214,7 +1214,7 @@ static void commit_log(void)
  *	file_inode - file size 
  *	dir_inode - offset in directory
  */
-void add_to_loghdr(uint8_t type, struct inode *inode, offset_t data, 
+void add_to_loghdr(uint8_t type, struct inode *inode, void *data, 
 		uint32_t length, void *extra, uint16_t extra_len)
 {
 	uint32_t i;
@@ -1269,6 +1269,8 @@ void add_to_loghdr(uint8_t type, struct inode *inode, offset_t data,
 		mlfs_debug("reached here %d\n", data);
 		// mlfs_debug("reached here %s\n", (offset_t)data);
 		loghdr->data[i] = (offset_t)data;
+	} else if (type == L_TYPE_LDB_ADD) {
+		loghdr->data[i] = data;
 	} else {
 		loghdr->data[i] = 0;
 	}
