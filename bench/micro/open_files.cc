@@ -33,9 +33,9 @@ void show_usage(const char *prog)
 
 int main(int argc, char *argv[])
 {
-    const char *test_dir_prefix = "/mlfs/";
+    const char *test_dir_prefix = "/mlfs/a";
 
-    char *test_file_name = "testfile2";
+    char *test_file_name = "testfile16c";
 
     std::string test_file;
 
@@ -45,13 +45,13 @@ int main(int argc, char *argv[])
         show_usage("create_files");
 
     int count = atoi(argv[1]);
-    printf("calculation has started\n");
+//    printf("calculation has started\n");
     clock_t begin = clock();
     clock_t begin_m = clock();
-
+	mkdir("/mlfs", 0777);
 	int ret = mkdir(test_dir_prefix, 0777);
     clock_t end_m = clock();
-    printf("Time elapsed for dir mk: %.3f\n", (double)(end_m - begin_m)  * 1000.0 / CLOCKS_PER_SEC);
+    // printf("Time elapsed for dir mk: %.3f\n", (double)(end_m - begin_m)  * 1000.0 / CLOCKS_PER_SEC);
 
     for(int i=1; i<count+1; i++) {
         clock_t begin_s = clock();
@@ -60,15 +60,15 @@ int main(int argc, char *argv[])
 
 	    test_file += std::string(test_file_name) + std::to_string(1) + "-" + std::to_string(i);
 
-        printf("Creating file %s\n", test_file.c_str());
-    	fd = open(test_file.c_str(), O_RDWR | O_CREAT,
+ //      printf("Creating file %s\n", test_file.c_str());
+    	fd = open(test_file.c_str(), O_RDWR,
 				S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
 		
         if (fd < 0) {
                 err(1, "open");
         }
         clock_t end_s = clock();
-        printf("Time elapsed for file : %.3f\n", (double)(end_s - begin_s)  * 1000.0 / CLOCKS_PER_SEC);
+        // printf("Time elapsed for file %s: %.3f\n", test_file.c_str(), (double)(end_s - begin_s)  * 1000.0 / CLOCKS_PER_SEC);
 
     }
     clock_t end = clock();

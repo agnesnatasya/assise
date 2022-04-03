@@ -1,6 +1,6 @@
 CC = gcc -std=c99
 #CC = c99
-EXE = create_files iobench iobench_lat dmabench dmabench_lat
+EXE = create_files create_files_and_dirs_random iobench iobench_lat dmabench dmabench_lat
 #$(info $(EXE))
 
 CUR_DIR = $(shell pwd)
@@ -53,7 +53,7 @@ time_stat.o: time_stat.c
 create_files: create_files.cc
 	$(CXX) -std=c++11 -g -Ofast -o $@ $^  -I$(INCLUDES) -L$(LIBFS_DIR) -lmlfs $(CFLAGS) -L$(RDMA_DIR) $(LDFLAGS)
 
-create_files_small: create_files_small.cc
+create_files_and_dirs_random: create_files_and_dirs_random.cc
 	$(CXX) -std=c++11 -g -Ofast -o $@ $^  -I$(INCLUDES) -L$(LIBFS_DIR) -lmlfs $(CFLAGS) -L$(RDMA_DIR) $(LDFLAGS)
 
 iobench: iobench.cc time_stat.o thread.cc
