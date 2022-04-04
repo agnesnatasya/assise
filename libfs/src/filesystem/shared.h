@@ -162,6 +162,12 @@ typedef struct logheader {
 	uint16_t inuse;
 } loghdr_t;
 
+typedef struct ldblogheader {
+	uint8_t n;
+	uint32_t parent_inode_no[g_max_blocks_per_operation];
+	struct mlfs_dirent *data[g_max_blocks_per_operation];
+} ldbloghdr_t;
+
 typedef struct io_vec {
 	uint8_t *base;
 	uint32_t size;
@@ -172,9 +178,11 @@ typedef struct logheader_meta {
 	struct list_head link;
 	// addr_t blocks[g_max_blocks_per_operation];
 	struct logheader *loghdr;
+	struct ldblogheader *ldbloghdr;
 	struct logheader *previous_loghdr;
 	// flag whether io_buf is allocated or not
 	uint8_t is_hdr_allocated;
+	uint8_t is_ldbhdr_allocated;
 	// block number of on-disk logheader.
 
 	// flag whether hdr is off-limits for coalescing or not

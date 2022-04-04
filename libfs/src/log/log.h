@@ -73,6 +73,7 @@ extern volatile struct log_superblock *g_log_sb;
 void init_log();
 void add_to_loghdr(uint8_t type, struct inode *inode, void *data, 
 		uint32_t length, void *extra, uint16_t extra_len);
+void add_to_ldbloghdr(uint32_t parent_inum, struct mlfs_dirent* data);
 void start_log_tx(void);
 void abort_log_tx(void);
 void commit_log_tx(void);
