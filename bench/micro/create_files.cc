@@ -35,9 +35,9 @@ int main(int argc, char *argv[])
 {
     clock_t begin = clock();
 
-    const char *test_dir_prefix = "/mlfs/p/";
+    const char *test_dir_prefix = "/mlfs/aa/";
 
-    char *test_file_name = "testfile15";
+    char *test_file_name = "file1";
 
     std::string test_file;
 
@@ -70,7 +70,7 @@ int main(int argc, char *argv[])
         }
         clock_t end = clock();
         double time_spent = (double)(end - begin)  * 1000.0 / CLOCKS_PER_SEC;
-        printf("Time elapsed: %.3f\n", time_spent);
+        printf("Time: %.3f\n", time_spent);
         return 0;
 
     }
@@ -83,17 +83,14 @@ int main(int argc, char *argv[])
 	    test_file.assign(test_dir_prefix);
 
 	    test_file += std::string(test_file_name) + std::to_string(5) + "-" + std::to_string(i);
- try {
     	fd = open(test_file.c_str(), O_RDWR | O_CREAT,
 				S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
- } catch (...) {
- }	 
-//        if (fd < 0) {
-  //              err(1, "open");
-    //    }
+        if (fd < 0) {
+                err(1, "open");
+        }
     }
     clock_t end = clock();
     double time_spent = (double)(end - begin)  * 1000.0 / CLOCKS_PER_SEC;
-    printf("Time elapsed: %.3f\n", time_spent);
+    printf("Time: %.3f\n", time_spent);
     return 0;
 }
