@@ -48,7 +48,7 @@ struct inode *dir_lookup(struct inode * dir_inode, char *name, offset_t *poff)
 	if (ip) {
 		//pthread_rwlock_unlock(g_debug_rwlock);
 		end_dir_lookup = clock();
-		printf("NO %s %d %d: %.3f\n", name, first, second, (double)(end_dir_lookup - start_dir_lookup)  * 1000.0 / CLOCKS_PER_SEC);
+		printf("NO %s: %.3f\n", name, (double)(end_dir_lookup - start_dir_lookup)  * 1000.0 / CLOCKS_PER_SEC);
 		// printf("Time elapsed for dir lookup NO SEARCH for %s at dir %u: %.3f\n", name, dir_inode->inum, (double)(end_dir_lookup - start_dir_lookup)  * 1000.0 / CLOCKS_PER_SEC);
 		return ip;
 	}
