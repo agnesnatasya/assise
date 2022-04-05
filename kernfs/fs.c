@@ -466,30 +466,46 @@ int digest_file(uint8_t from_dev, uint8_t to_dev, int libfs_id, uint32_t file_in
 
 		bh_release(bh_data);
 
-		struct mlfs_dirent de;
-		// mlfs_debug("This is the type %d, while %d, and the result is %d\n", type, L_TYPE_DIR_ADD, type == L_TYPE_DIR_ADD);
-		clock_t begin_adding_to_level_db = clock();
-	
 		if (type == L_TYPE_DIR_ADD) {
-			// mlfs_debug("I AM %s\n", "A DIRECTORY");
-		bh = bh_get_sync_IO(to_dev, map.m_pblk, BH_NO_DATA_ALLOC);
-		bh->b_size = sizeof(struct mlfs_dirent) * 2;
-		bh->b_data = (uint8_t *) (&de);
-		bh->b_offset = offset;
-		bh_submit_read_sync_IO(bh);
-		mlfs_debug("This is the key %s, value %d\n", de.name, de.inum);
-		put_to_leveldb(file_inum, de.name, de.inum);
+			/*
+			digest_file(from_dev, 
+						dest_dev,
+						libfs_id,
+						loghdr->inode_no[i] -> of parent dir, 
+						loghdr->data[i] -> offset, 
+						loghdr->length[i] -> length,
+						loghdr->blocks[i] + loghdr_meta->hdr_blkno -> blknr,
+						loghdr->type[i] -> type
+						); 
+			*/
+			// file inum -> inode of parent dir	
+			// length = size of dirent struct
+			// offset of dirent 1 = 0, dirent 1 = 32, dirent 2 = 64, etc. 
+			// blknr -> the physical block address
 
-		if (!strcmp(de.name, ".")) {
-			struct mlfs_dirent *pointer_to_de = (&de);
-			// mlfs_debug("%s\n", "This is when adding links ");
-			mlfs_debug("This is the key %s, value %d\n", pointer_to_de[1].name, pointer_to_de[1].inum);
-			put_to_leveldb(file_inum, pointer_to_de[1].name, pointer_to_de[1].inum);
-		}
-		}
-	clock_t end_adding_to_level_db = clock();
-	mlfs_debug("Time elapsed for adding to level db: %.3f\n", (double)(end_adding_to_level_db - begin_adding_to_level_db)  * 1000.0 / CLOCKS_PER_SEC);
+			struct mlfs_dirent de;
+			clock_t begin_adding_to_level_db = clock();
+			struct buffer_head *bh = (struct buffer_head *)mlfs_alloc(sizeof(struct buffer_head));
+			// bh = bh_get_sync_IO(to_dev, map.m_pblk, BH_NO_DATA_ALLOC);
+			bh->b_dev = from_dev;
+			bh->b_size = sizeof(struct mlfs_dirent);
+			bh->blknr = blknr;
+			bh->b_data = (uint8_t *) (&de);
+			// bh->b_offset = offset_in_block;
+			bh_submit_read_sync_IO(bh);
+			mlfs_debug("This is the key %s, value %d\n", de.name, de.inum);
+			put_to_leveldb(file_inum, de.name, de.inum);
 
+			// if (!strcmp(de.name, ".")) {
+			// 	struct mlfs_dirent *pointer_to_de = (&de);
+			// 	// mlfs_debug("%s\n", "This is when adding links ");
+			// 	mlfs_debug("This is the key %s, value %d\n", pointer_to_de[1].name, pointer_to_de[1].inum);
+			// 	put_to_leveldb(file_inum, pointer_to_de[1].name, pointer_to_de[1].inum);
+			// }
+			clock_t end_adding_to_level_db = clock();
+		}
+
+		mlfs_debug("Time elapsed for adding to level db: %.3f\n", (double)(end_adding_to_level_db - begin_adding_to_level_db)  * 1000.0 / CLOCKS_PER_SEC);
 
 		mlfs_debug("inum %d, offset %lu len %u (dev %d:%lu) -> (dev %d:%lu)\n", 
 				file_inode->inum, cur_offset, _len, 
@@ -591,10 +607,10 @@ int digest_file(uint8_t from_dev, uint8_t to_dev, int libfs_id, uint32_t file_in
 	if (file_inode->size < offset + length)
 		file_inode->size = offset + length;
 
-	if (type == L_TYPE_DIR_ADD) {
-		end_dir_add_entry = clock();
-		printf("Time elapsed for dir add entry digest at dir %u: %.3f\n", file_inode->inum, (double)(end_dir_add_entry - start_dir_add_entry)  * 1000.0 / CLOCKS_PER_SEC);
-	}
+	// if (type == L_TYPE_DIR_ADD) {
+	// 	end_dir_add_entry = clock();
+	// 	printf("Time elapsed for dir add entry digest at dir %u: %.3f\n", file_inode->inum, (double)(end_dir_add_entry - start_dir_add_entry)  * 1000.0 / CLOCKS_PER_SEC);
+	// }
 	return 0;
 }
 
