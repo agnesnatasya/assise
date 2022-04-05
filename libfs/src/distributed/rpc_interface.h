@@ -29,8 +29,11 @@ static char* local_intf = "lo";
 // Replica IP Mappings --------------------------------------------
 
 static struct peer_id hot_replicas[g_n_hot_rep] = {
-	{ .ip = "127.0.0.1", .role = HOT_REPLICA, .type = KERNFS_PEER},
-//	{ .ip = "13.13.13.7", .role = HOT_REPLICA, .type = KERNFS_PEER},
+//	{ .ip = "127.0.0.1", .role = HOT_REPLICA, .type = KERNFS_PEER},
+
+	{ .ip = "10.0.2.2", .role = HOT_REPLICA, .type = KERNFS_PEER},
+	{ .ip = "10.0.2.3", .role = HOT_REPLICA, .type = KERNFS_PEER},
+
 };
 
 

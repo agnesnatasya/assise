@@ -615,7 +615,7 @@ int digest_file(uint8_t from_dev, uint8_t to_dev, int libfs_id, uint32_t file_in
 
 	if (type == L_TYPE_DIR_ADD) {
 		end_dir_add_entry = clock();
-		printf("Time elapsed for dir add entry digest at dir %u: %.3f\n", file_inode->inum, (double)(end_dir_add_entry - start_dir_add_entry)  * 1000.0 / CLOCKS_PER_SEC);
+		printf("ADD: %.3f\n", (double)(end_dir_add_entry - start_dir_add_entry)  * 1000.0 / CLOCKS_PER_SEC);
 	}
 
 	return 0;

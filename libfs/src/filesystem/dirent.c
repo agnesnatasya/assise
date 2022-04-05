@@ -37,6 +37,8 @@ struct inode *dir_lookup(struct inode *dir_inode, char *name, offset_t *poff)
 	struct inode *ip = NULL;
 	int n_de_cache = 0;
 	offset_t off;
+	clock_t end_dir_lookup;
+	clock_t start_dir_lookup = clock();
 
 	//pthread_rwlock_wrlock(g_debug_rwlock);
 
@@ -44,14 +46,21 @@ struct inode *dir_lookup(struct inode *dir_inode, char *name, offset_t *poff)
 
 	if (ip) {
 		//pthread_rwlock_unlock(g_debug_rwlock);
+		end_dir_lookup = clock();
+		printf("NO %s: %.3f\n", name, (double)(end_dir_lookup - start_dir_lookup)  * 1000.0 / CLOCKS_PER_SEC);
 		return ip;
 	}
 
 	mlfs_debug("dir_lookup: de_cache miss for dir %u, name %s\n", dir_inode->inum, name);
 
 	n_de_cache = dir_inode->n_de_cache_entry + 2;
+	int first = n_de_cache * sizeof(struct mlfs_dirent);
+	int second = dir_inode->size;
 	if (n_de_cache * sizeof(struct mlfs_dirent) == dir_inode->size) {
+		mlfs_debug("NO SEARCH %d %d\n", n_de_cache * sizeof(struct mlfs_dirent), dir_inode->size);
 		mlfs_debug("%s\n", "not found w/ full de cache - skipping iteration");
+		end_dir_lookup = clock();
+		printf("NO %s %d %d: %.3f\n", name, first, second, (double)(end_dir_lookup - start_dir_lookup)  * 1000.0 / CLOCKS_PER_SEC);
 		//pthread_rwlock_unlock(g_debug_rwlock);
 		return NULL;
 	}
@@ -59,7 +68,7 @@ struct inode *dir_lookup(struct inode *dir_inode, char *name, offset_t *poff)
 	mlfs_debug("dir_lookup: starting search for name %s (dirs: cached %d total %ld)\n",
 			name, n_de_cache, dir_inode->size / sizeof(struct mlfs_dirent));
 
-
+	// mlfs_debug("SEARCH %d %d\n", n_de_cache * sizeof(struct mlfs_dirent), dir_inode->size);
 	// iterate through file's dirent until finding name match
 	for (off = n_de_cache * sizeof(struct mlfs_dirent); off < dir_inode->size; off += sizeof(struct mlfs_dirent)) {
 
@@ -83,12 +92,16 @@ struct inode *dir_lookup(struct inode *dir_inode, char *name, offset_t *poff)
 		if (!namecmp(name, de.name)) {
 			//pthread_rwlock_unlock(g_debug_rwlock);
 			*poff = off;
+			end_dir_lookup = clock();
+			printf("YES %s %d %d: %.3f\n", name, first, second, (double)(end_dir_lookup - start_dir_lookup)  * 1000.0 / CLOCKS_PER_SEC);
 			return ip;
 		}
 	}
 
 	//pthread_rwlock_unlock(g_debug_rwlock);
 	mlfs_debug("dir_lookup: did not find %s in dir %u\n", name, dir_inode->inum);
+	end_dir_lookup = clock();
+	printf("YES %s %d %d: %.3f\n", name, first, second, (double)(end_dir_lookup - start_dir_lookup)  * 1000.0 / CLOCKS_PER_SEC);
 	return NULL;
 }
 
@@ -407,8 +420,10 @@ struct inode* nameiparent(char *path, char *name)
 	char parent_path[MAX_PATH];
 
 	get_parent_path(path, parent_path, name);
+		mlfs_debug("this is the path, parent path and name %s %s %s inode value is %d \n", path, parent_path, name, inode);
 
 	inode = dlookup_find(parent_path); 
+	mlfs_debug("this is the inode of the parent path %s %d\n", parent_path, inode);
 
 	if (inode && (inode->flags & I_DELETING)) 
 		return NULL;
