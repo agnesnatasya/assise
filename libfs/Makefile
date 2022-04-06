@@ -49,10 +49,10 @@ INCLUDES  := $(addprefix -I,src/ $(RDMA_CORE_DIR)/build/include $(RDMA_DIR) $(NV
 LD_FLAGS = -lpthread -laio -lstdc++ -lm -lnuma -L$(NVML_DIR)/nondebug/ -Wl,-rpath=$(abspath $(NVML_DIR)/nondebug) -lpmem -lrt -L$(RDMA_CORE_DIR)/build/lib -Wl,-rpath=$(RDMA_CORE_DIR)/build/lib -L$(RDMA_DIR) -lrdmacm -libverbs -lpthread -Wl,-rpath=$(abspath $(RDMA_DIR)) -lrdma #-Wl,-fuse-ld=gold
 
 #MLFS_FLAGS = -DUSE_SLAB -DLIBFS -DMLFS_INFO
-#MLFS_FLAGS = -DLIBFS
+MLFS_FLAGS = -DLIBFS
 #MLFS_FLAGS = -DLIBFS -DMLFS_INFO
 #MLFS_FLAGS = -DLIBFS -DMLFS_POSIX
-MLFS_FLAGS = -DLIBFS -DMLFS_DEBUG
+#MLFS_FLAGS = -DLIBFS -DMLFS_DEBUG
 MLFS_FLAGS += -DCONCURRENT
 MLFS_FLAGS += -DDISTRIBUTED
 MLFS_FLAGS += -DMASTER
