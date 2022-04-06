@@ -1,4 +1,7 @@
 #include <stdlib.h>
+#include <ctime>
+#include <cstdio>
+#include <chrono>
 #include <stdio.h>
 #include <unistd.h>
 #include <sys/types.h>
@@ -26,7 +29,7 @@
 void show_usage(const char *prog)
 {
 	std::cerr << "usage: " << prog
-		<< "<num_of_files>"
+		<< "<num_of_files> <create/not>"
         << std::endl;
 }
 
@@ -35,7 +38,9 @@ int main(int argc, char *argv[])
 {
     clock_t begin = clock();
 
-    const char *test_dir_prefix = "/mlfs/aa/";
+    auto wcts = std::chrono::system_clock::now();
+
+    const char *test_dir_prefix = "/mlfs/ap/";
 
     char *test_file_name = "file1";
 
@@ -71,6 +76,8 @@ int main(int argc, char *argv[])
         clock_t end = clock();
         double time_spent = (double)(end - begin)  * 1000.0 / CLOCKS_PER_SEC;
         printf("Time: %.3f\n", time_spent);
+    std::chrono::duration<double> wctduration = (std::chrono::system_clock::now() - wcts);
+    printf("Wall time %.3f ms\n", wctduration.count()*1000);
         return 0;
 
     }
@@ -92,5 +99,8 @@ int main(int argc, char *argv[])
     clock_t end = clock();
     double time_spent = (double)(end - begin)  * 1000.0 / CLOCKS_PER_SEC;
     printf("Time: %.3f\n", time_spent);
+
+       std::chrono::duration<double> wctduration = (std::chrono::system_clock::now() - wcts);
+    printf("Wall time %.3f ms\n", wctduration.count()*1000);
     return 0;
 }
