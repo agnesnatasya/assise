@@ -5,6 +5,8 @@ Assise is a distributed file system designed to maximize the use of client-local
 
 Assise uses a userspace file system library -- LibFS -- that intercepts POSIX calls and turns them into function calls, allowing reads and writes to be served using loads and stores to local NVM caches. We use a daemon called SharedFS to coordinate linearizable state among LibFS processes via leases. Our filesystem provides near-instantaneous application fail-over onto a hot replica that mirrors an application local file system cache in the replica.
 
+This fork of Assise is a modification of the original Assise implementation. It uses an LSM tree as the data structure of the implementation. More details on the design can be found [here](https://github.com/agnesnatasya/assise/blob/master/Assise_LSM_Presentation.pdf)
+
 Our [OSDI paper](https://wreda.github.io/papers/assise-osdi20.pdf) describes our system in detail.
 
 To cite us, you can use the following BibTex entry:
