@@ -48,7 +48,7 @@ struct inode *dir_lookup(struct inode * dir_inode, char *name, offset_t *poff)
 	if (ip) {
 		//pthread_rwlock_unlock(g_debug_rwlock);
 		end_dir_lookup = clock();
-		printf("NO %s: %.3f\n", name, (double)(end_dir_lookup - start_dir_lookup)  * 1000.0 / CLOCKS_PER_SEC);
+		mlfs_debug("[BENCHMARK] Dir lookup - no search %s: %.3f\n", name, (double)(end_dir_lookup - start_dir_lookup)  * 1000.0 / CLOCKS_PER_SEC);
 		// printf("Time elapsed for dir lookup NO SEARCH for %s at dir %u: %.3f\n", name, dir_inode->inum, (double)(end_dir_lookup - start_dir_lookup)  * 1000.0 / CLOCKS_PER_SEC);
 		return ip;
 	}
@@ -62,31 +62,17 @@ struct inode *dir_lookup(struct inode * dir_inode, char *name, offset_t *poff)
 	if (n_de_cache * sizeof(struct mlfs_dirent) == dir_inode->size) {
 		mlfs_debug("%s\n", "not found w/ full de cache - skipping search");
 		end_dir_lookup = clock();
-		printf("NO %s %d %d: %.3f\n", name, first, second, (double)(end_dir_lookup - start_dir_lookup)  * 1000.0 / CLOCKS_PER_SEC);
-		// printf("Time elapsed for dir lookup NO SEARCH for %s at dir %u: %.3f\n", name, dir_inode->inum, (double)(end_dir_lookup - start_dir_lookup)  * 1000.0 / CLOCKS_PER_SEC);
+		mlfs_debug("[BENCHMARK] Dir lookup - no search for %s at dir %u: %.3f\n", name, dir_inode->inum, (double)(end_dir_lookup - start_dir_lookup)  * 1000.0 / CLOCKS_PER_SEC);
 		//pthread_rwlock_unlock(g_debug_rwlock);
 		return NULL;
 	}
 
-	// printf("YES %d %d\n", first, second);
 	mlfs_debug("%s\n", "dir_lookup: contacting KernFS");
 
-	// get_parent_path(path, parent_path, name);
-	
-	// mlfs_debug("This is the parent path %s %d\n", parent_path, strlen(parent_path));
-	// if (strlen(parent_path) == 0) {
-	// 	strcat(parent_path, "/");
-	// 	mlfs_debug("This is the path %s\n", path);
-	// 	mlfs_debug("This is the parent path %s\n", parent_path);
-	// }
-	// to get the de inum and de name
 	rpc_remote_dir_lookup_sync(name, dir_inode->inum);
-	// rpc_remote_dir_lookup_sync(name, dir_inode->inum, 1);
 
-	// re-search cos it's been added by the RPC call	
 	int de_inum = inum_of_de_in_search;
 	char *de_name = name_of_de_in_search;
-	printf("This is the result %d %s %s\n", de_inum, de_name, name);
 	
 	if (de_inum) {
 		// get the inode of this inum
@@ -99,48 +85,14 @@ struct inode *dir_lookup(struct inode * dir_inode, char *name, offset_t *poff)
 		// add entry to cache
 		de_cache_add(dir_inode, name, ip, off);
 
-		if (!namecmp(de_name, name)) { // TODO: change jadi de_name
-			mlfs_debug("%s\n", "Helo i berhasil return");
+		if (!namecmp(de_name, name)) {
 			end_dir_lookup = clock();
-			printf("YES %s %d %d: %.3f\n", name, first, second, (double)(end_dir_lookup - start_dir_lookup)  * 1000.0 / CLOCKS_PER_SEC);
-			//pthread_rwlock_unlock(g_debug_rwlock);
+			mlfs_debug("[BENCHMARK] Dir lookup - search for %s at dir %d: %.3f\n", name, dir_inode->inum, (double)(end_dir_lookup - start_dir_lookup)  * 1000.0 / CLOCKS_PER_SEC);
 			*poff = off;
 			return ip;
 		}
 	}
 
-	/*
-	mlfs_debug("dir_lookup: starting search for name %s (dirs: cached %d total %ld)\n",
-			name, n_de_cache, dir_inode->size / sizeof(struct mlfs_dirent));
-	// iterate through file's dirent until finding name match
-	for (off = n_de_cache * sizeof(struct mlfs_dirent); off < dir_inode->size; off += sizeof(struct mlfs_dirent)) {
-
-		if (get_dirent(dir_inode, &de, off) != sizeof(struct mlfs_dirent))
-			break;
-
-		// get the inode of this inum
-		ip = icache_find(de.inum); 
-
-		if(!ip) {
-#if MLFS_NAMESPACES
-			ip = iget(de.inum | (dir_inode->inum & g_namespace_mask));	
-#else
-			ip = iget(de.inum);
-#endif
-
-		}
-
-		// add entry to cache
-		de_cache_add(dir_inode, de.name, ip, off);
-
-		if (!namecmp(name, de.name)) {
-			//pthread_rwlock_unlock(g_debug_rwlock);
-			*poff = off;
-			return ip;
-		}
-	}
-	*/
-	//pthread_rwlock_unlock(g_debug_rwlock);
 	mlfs_debug("dir_lookup: did not find %s in dir %u\n", name, dir_inode->inum);
 	end_dir_lookup = clock();
 	printf("YES %s %d %d: %.3f\n", name, first, second, (double)(end_dir_lookup - start_dir_lookup)  * 1000.0 / CLOCKS_PER_SEC);
@@ -316,38 +268,13 @@ struct mlfs_dirent *dir_add_entry(struct inode *dir_inode, char *name, struct in
 
 	// append to directory file
 	mlfs_debug("adding new dirent to dir inode %u: %s ~ %u at offset %lu\n", dir_inode->inum, name, ip->inum, dir_inode->size);
-	// int add_to_log(struct inode *ip, uint8_t *data, offset_t off, uint32_t size, uint8_t ltype)
 	add_to_ldbloghdr(dir_inode->inum, new_de);
 	add_to_ldbloghdr(dir_inode->inum, new_de);
-	// add_to_log(dir_inode, name,  new_de->inum, sizeof(struct mlfs_dirent), L_TYPE_LDB_ADD);
 	add_to_log(dir_inode, (uint8_t *) new_de, off, sizeof(struct mlfs_dirent), L_TYPE_DIR_ADD);
-	// rpc_remote_dir_add_entry_async(dir_inode->inum, name, ip->inum);
 	de_cache_add(dir_inode, name, ip, off);
 
 	return new_de;
 
-	// struct mlfs_dirent *new_de;
-	// offset_t off;
-	// offset_t de_off;
-	// char *k;
-
-	// // LevelDB Operations
-	// // To create the key and put it in the DB
-	// build_meta_key(name, strlen(name), ip->inum, k);
-  // leveldb_put(db_adaptor->db, woptions, k, sizeof(k), dir_inode, dir_inode->size, NULL);
-
-	// new_de = mlfs_zalloc(sizeof(struct mlfs_dirent));
-	// new_de->inum = ip->inum;
-	// strncpy(new_de->name, name, DIRSIZ);
-	// off = dir_inode->size;
-
-	// // append to directory file
-	// mlfs_debug("adding new dirent to dir inode %u: %s ~ %u at offset %lu\n", dir_inode->inum, name, ip->inum, dir_inode->size);
-	// // add_to_log(dir_inode, (uint8_t *) new_de, off, sizeof(struct mlfs_dirent), L_TYPE_DIR_ADD); // to be able to be replicated, not sure if I should remove this or not
-	// // have to be communicated immediately. if we wait for the digest, might result in stale read. 
-	// de_cache_add(dir_inode, name, ip, off);
-
-	// return new_de;
 }
 
 // Paths

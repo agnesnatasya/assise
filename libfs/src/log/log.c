@@ -1228,15 +1228,7 @@ void add_to_ldbloghdr(uint32_t parent_inum, struct mlfs_dirent* data) {
 	ldbloghdr->n++;
 	ldbloghdr->parent_inode_no[i] = parent_inum;
 	ldbloghdr->data[i] = mlfs_zalloc(sizeof(struct mlfs_dirent));
-	mlfs_debug("sampe %d %s\n", 1, data->name);
 	memcpy(ldbloghdr->data[i], data, sizeof(struct mlfs_dirent));
-	mlfs_debug("sampe %d %s\n", 2, ldbloghdr->data[i]->name);
-	// struct mlfs_dirent *new_de = malloc(sizeof(struct mlfs_dirent) );
-	// mlfs_debug("sampe %d\n", 3);
-	// memcpy(new_de, &ldbloghdr->data[i], sizeof(struct mlfs_dirent));
-	// mlfs_debug("sampe %d\n", 4);
-	// mlfs_debug("gimana sii wkwkwk %s %u\n", new_de->name, new_de->inum);
-		
 }
 /* FIXME: Use of parameter and name of that are very confusing.
  * data: 
@@ -1297,25 +1289,7 @@ void add_to_loghdr(uint8_t type, struct inode *inode, void *data,
 			type == L_TYPE_DIR_RENAME ||
 			type == L_TYPE_DIR_DEL ||
 			type == L_TYPE_ALLOC) {
-		// offset in file.
-		// mlfs_debug("reached here %s\n", (offset_t)data);
 		loghdr->data[i] = (offset_t)data;
-	} else if (type == L_TYPE_LDB_ADD) {
-		//mlfs_debug("reached here %d\n", data);
-		//mlfs_debug("reached here %d\n", (char *)data);                
-	/*	struct mlfs_dirent *new_de1 = mlfs_alloc(sizeof(struct mlfs_dirent) );
-		memcpy(new_de1, data, sizeof(struct mlfs_dirent));
-		mlfs_debug("a %d\n", 1);
-		memcpy(&loghdr->data[i], 1, sizeof(int));
-		mlfs_debug("b %d\n", 2);
-		memcpy(&loghdr->data[i], data, sizeof(struct mlfs_dirent));
-		loghdr->data[i] = data;
-		mlfs_debug("WOHOOO %s\n", "a");*/
-//		loghdr->data[i] = 
-//		*/
-//
-		
-
 	} else {
 		loghdr->data[i] = 0;
 	}

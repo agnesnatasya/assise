@@ -98,18 +98,14 @@ int addr_idx = 0;
 DECLARE_BITMAP(g_log_bitmap, g_n_max_libfs);
 
 
+// LevelDB Operations
 static void build_meta_key(char *name, int len, int dir_inum, char* result) {
+	// Generating murmur hash for the key in LevelDB
 	uint32_t hash[4]; 	
 	MurmurHash3_x64_128(name, len, 123, hash);
-	// char meta_key[40];
-	// mlfs_debug("this is the hash %s\n", hash_id);
 	snprintf(result, 41, "%08x%08x%08x%08x%08x", dir_inum, hash[0], hash[1], hash[2], hash[3]);
-	// snprintf(meta_key, 1000, "%d%lu", dir_inum, hash_id);
-	// mlfs_debug("This is t he key %s for name %s, len %d at dir %d\n", meta_key, name, len, dir_inum);
-	// return strcat(dir_inum, hash_id);
 }
 
-// LevelDB Operations
 
 int digest_unlink(uint8_t from_dev, uint8_t to_dev, int libfs_id, uint32_t inum);
 
@@ -465,44 +461,35 @@ int digest_file(uint8_t from_dev, uint8_t to_dev, int libfs_id, uint32_t file_in
 
 
 		if (type == L_TYPE_DIR_ADD) {
-			/*
-			digest_file(from_dev, 
-						dest_dev,
-						libfs_id,
-						loghdr->inode_no[i] -> of parent dir, 
-						loghdr->data[i] -> offset, 
-						loghdr->length[i] -> length,
-						loghdr->blocks[i] + loghdr_meta->hdr_blkno -> blknr,
-						loghdr->type[i] -> type
-						); 
-			*/
 			// file inum -> inode of parent dir	
 			// length = size of dirent struct
 			// offset of dirent 1 = 0, dirent 1 = 32, dirent 2 = 64, etc. 
 			// blknr -> the physical block address
-
-			// clock_t begin_adding_to_level_db = clock();
+			// Read from NVM
 			struct buffer_head *bh = (struct buffer_head *)mlfs_alloc(sizeof(struct buffer_head));
-			// // bh = bh_get_sync_IO(to_dev, map.m_pblk, BH_NO_DATA_ALLOC);
 			struct mlfs_dirent de;
 			bh->b_dev = to_dev;
 			bh->b_size = sizeof(struct mlfs_dirent);
 			bh->b_blocknr = map.m_pblk;
 			bh->b_data = (uint8_t *) (&de);
 			bh->b_offset = offset_in_block;
-			// bh->b_offset = offset;
 			bh_submit_read_sync_IO(bh);
-			mlfs_debug("This is the key %s, value %d\n", de.name, de.inum);
+			// mlfs_debug("This is the key %s, value %d\n", de.name, de.inum);
+
+			// Put to LevelDB
 			put_to_leveldb(file_inum, de.name, de.inum);
 
-			// if (!strcmp(de.name, ".")) {
-			// 	struct mlfs_dirent *pointer_to_de = (&de);
-			// 	// mlfs_debug("%s\n", "This is when adding links ");
-			// 	mlfs_debug("This is the key %s, value %d\n", pointer_to_de[1].name, pointer_to_de[1].inum);
-			// 	put_to_leveldb(file_inum, pointer_to_de[1].name, pointer_to_de[1].inum);
-			// }
-			// clock_t end_adding_to_level_db = clock();
-			// mlfs_debug("ADD: %.3f\n", (double)(end_adding_to_level_db - begin_adding_to_level_db)  * 1000.0 / CLOCKS_PER_SEC);
+			// TODO: Handle special case if it's a link
+			/*
+			if (!strcmp(de.name, ".")) {
+				struct mlfs_dirent *pointer_to_de = (&de);
+				// mlfs_debug("%s\n", "This is when adding links ");
+				mlfs_debug("This is the key %s, value %d\n", pointer_to_de[1].name, pointer_to_de[1].inum);
+				put_to_leveldb(file_inum, pointer_to_de[1].name, pointer_to_de[1].inum);
+			}
+			clock_t end_adding_to_level_db = clock();
+			*/
+			mlfs_debug("[BENCHMARK] ADD: %.3f\n", (double)(end_adding_to_level_db - begin_adding_to_level_db)  * 1000.0 / CLOCKS_PER_SEC);
 		}
 
 		mlfs_assert(!ret);
@@ -1330,7 +1317,7 @@ static void file_digest_worker(void *arg)
 	list_for_each_entry_safe(f_iovec, iovec_tmp, 
 			&f_item->iovec_list, list) {
 #ifndef EXPERIMENTAL
-		// TODO: Revert
+		// TODO: Revert when exploring experimental
 		// digest_file(_arg->from_dev, _arg->to_dev, _arg->libfs_id,
 		// 		f_item->key.inum, f_iovec->offset, 
 		// 		f_iovec->length, f_iovec->blknr);
@@ -1417,7 +1404,7 @@ static void digest_log_from_replay_list(uint8_t from_dev, int libfs_id, struct r
 						&f_item->iovec_list, list) {
 
 #ifndef EXPERIMENTAL
-					// TODO: REVERT
+					// TODO: Revert when exploring experimental
 					// digest_file(from_dev, dest_dev, libfs_id,
 					// 		f_item->key.inum, f_iovec->offset, 
 					// 		f_iovec->length, f_iovec->blknr);
@@ -2090,14 +2077,12 @@ Operations supported:
 	1. From name and parnet inode, get the inode and get the offset
 - dir_get_entry
 	1. From parent inode and offset, get the directory entry
-- dir_change_entry
-	1. dir_lookup
-	2. 
-	3. Remove the iput from the caller
-- dir_remove_entry
-	1.
 - dir_add_links
 - dir_add_entry
+
+// Future plans
+- dir_change_entry
+- dir_remove_entry
 */
 
 void dirent_init(void) {
@@ -2256,7 +2241,6 @@ void signal_callback(struct app_context *msg)
 		cmd_hdr[0] = 'i';
 	}
 
-	// next change
 	// dir related request
 	if (is_dir_cmd(cmd_hdr)) {
 		// dir lookup request
@@ -2264,7 +2248,7 @@ void signal_callback(struct app_context *msg)
 			char name[MAX_PATH];
 			int dir_inum;
 			
-			// printf("peer recv: %s\n", msg->data);
+			// mlfs_debug("peer recv: %s\n", msg->data);
 			sscanf(msg->data, "|%s |%d|%s", cmd_hdr, &dir_inum, name);
 			mlfs_debug("key built with %s at inode %d\n", name, dir_inum);
 			char k[41];
@@ -2274,12 +2258,12 @@ void signal_callback(struct app_context *msg)
 			mlfs_debug("key %s built with %s at inode %d\n", k, name, dir_inum);
 			leveldb_readoptions_t *roptions = leveldb_readoptions_create();
 			char *read = leveldb_get(db_adaptor->db, roptions, k, sizeof(k), &read_len, &err);
-			// mlfs_debug("this is the original retrieved result %s for key %s\n", read, k);
+			// mlfs_debug("original retrieved result %s for key %s\n", read, k);
 			int inum = 0;
 			if (read) {
 				sscanf(read, "%d", &inum);
 			}
-			mlfs_debug("This is the read result %d %s\n", inum, err);
+			// mlfs_debug("final read result %d %s\n", inum, err);
 			rpc_send_dir_lookup(msg->sockfd, msg->id, inum, name);
 		}
 	}
